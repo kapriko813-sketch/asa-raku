@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import Dexie from 'dexie';
 
-// データベースの定義
-const db = new Dexie('asaRakuDatabase_v7');
+// データベースの定義（season, sleeve を追加）
+const db = new Dexie('asaRakuDatabase_v8');
 db.version(1).stores({
-  clothes: '++id, category, memo, image, color' 
+  clothes: '++id, category, memo, image, color, season, sleeve' 
 });
 
 function App() {
@@ -15,13 +15,17 @@ function App() {
   const [category, setCategory] = useState('トップス');
   const [memo, setMemo] = useState('');
   const [color, setColor] = useState('白');
+  const [season, setSeason] = useState('通年'); // 🌟 季節の初期値
+  const [sleeve, setSleeve] = useState('長袖'); // 🌟 袖・丈の初期値
   const [imageSrc, setImageSrc] = useState(null);
   
   // --- 検索用の状態 ---
   const [searchCategory, setSearchCategory] = useState('すべて');
+  const [searchSeason, setSearchSeason] = useState('すべて'); // 🌟 検索用（季節）
+  const [searchSleeve, setSearchSleeve] = useState('すべて'); // 🌟 検索用（袖・丈）
   const [searchWord, setSearchWord] = useState('');
 
-  // --- 🌟 プレビュー用の状態（アウター、シューズを追加） ---
+  // --- プレビュー用の状態 ---
   const [selectedOuter, setSelectedOuter] = useState(null);
   const [selectedTop, setSelectedTop] = useState(null);
   const [selectedBottom, setSelectedBottom] = useState(null);
@@ -76,7 +80,9 @@ function App() {
       category,
       memo: memo || 'メモなし',
       image: imageSrc,
-      color
+      color,
+      season, // 🌟 季節を保存
+      sleeve  // 🌟 袖・丈を保存
     });
 
     setMemo('');
@@ -95,11 +101,14 @@ function App() {
     refreshClothes();
   };
 
-  // フィルタリング処理
+  // 🌟 フィルタリング処理（季節・袖丈の条件を追加）
   const filteredClothes = clothesList.filter((item) => {
     const matchCategory = searchCategory === 'すべて' || item.category === searchCategory;
+    const matchSeason = searchSeason === 'すべて' || item.season === searchSeason;
+    const matchSleeve = searchSleeve === 'すべて' || item.sleeve === searchSleeve;
     const matchWord = item.memo.toLowerCase().includes(searchWord.toLowerCase());
-    return matchCategory && matchWord;
+    
+    return matchCategory && matchSeason && matchSleeve && matchWord;
   });
 
   // タブ用スタイル
@@ -116,7 +125,6 @@ function App() {
     transition: '0.2s'
   });
 
-  // プレビュー枠の共通スタイル
   const previewBoxStyle = {
     width: '110px',
     minHeight: '140px',
@@ -149,9 +157,8 @@ function App() {
             </div>
           )}
 
-          <div style={{ marginBottom: '15px' }}>
+          <div style={{ marginBottom: '12px' }}>
             <label>カテゴリ: </label>
-            {/* 🌟 選択肢を増やしました */}
             <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ padding: '5px' }}>
               <option value="トップス">トップス</option>
               <option value="ボトムス">ボトムス</option>
@@ -169,6 +176,25 @@ function App() {
               <option value="赤">赤</option>
               <option value="ベージュ">ベージュ</option>
               <option value="グレー">グレー</option>
+              <option value="その他">その他</option>
+            </select>
+          </div>
+
+          {/* 🌟 【追加】季節と袖・丈の選択欄 */}
+          <div style={{ marginBottom: '15px' }}>
+            <label>季節: </label>
+            <select value={season} onChange={(e) => setSeason(e.target.value)} style={{ padding: '5px' }}>
+              <option value="通年">通年</option>
+              <option value="春夏">春夏（夏物）</option>
+              <option value="秋冬">秋冬（冬物）</option>
+            </select>
+
+            <label style={{ marginLeft: '15px' }}>袖・丈: </label>
+            <select value={sleeve} onChange={(e) => setSleeve(e.target.value)} style={{ padding: '5px' }}>
+              <option value="長袖">長袖 / 長ズボン</option>
+              <option value="半袖">半袖 / 半ズボン</option>
+              <option value="七分袖">七分袖 / クロップド</option>
+              <option value="ノースリーブ">ノースリーブ / スカート</option>
               <option value="その他">その他</option>
             </select>
           </div>
@@ -192,7 +218,6 @@ function App() {
         <div style={{ marginBottom: '25px', padding: '15px', border: '2px solid #28a745', borderRadius: '8px', backgroundColor: '#f4fbf7', textAlign: 'center' }}>
           <h3 style={{ marginTop: 0 }}>【コーディネートプレビュー】</h3>
           
-          {/* 🌟 4つのアイテムが並ぶように拡張 */}
           <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '15px' }}>
             {/* アウター */}
             <div style={previewBoxStyle}>
@@ -250,9 +275,10 @@ function App() {
         {/* 検索・絞り込み条件エリア */}
         <div style={{ marginBottom: '20px', padding: '15px', border: '1px solid #333', borderRadius: '8px', backgroundColor: '#f9f9f9' }}>
           <h3 style={{ marginTop: 0 }}>【検索・条件絞り込み】</h3>
+          
           <div style={{ marginBottom: '10px' }}>
-            <label>カテゴリ指定: </label>
-            <select value={searchCategory} onChange={(e) => setSearchCategory(e.target.value)} style={{ padding: '5px' }}>
+            <label>カテゴリ: </label>
+            <select value={searchCategory} onChange={(e) => setSearchCategory(e.target.value)} style={{ padding: '3px' }}>
               <option value="すべて">すべてのカテゴリ</option>
               <option value="トップス">トップス</option>
               <option value="ボトムス">ボトムス</option>
@@ -261,7 +287,30 @@ function App() {
               <option value="シューズ">シューズ</option>
               <option value="小物・バッグ">小物・バッグ</option>
             </select>
+
+            {/* 🌟 【追加】検索用の季節絞り込み */}
+            <label style={{ marginLeft: '10px' }}>季節: </label>
+            <select value={searchSeason} onChange={(e) => setSearchSeason(e.target.value)} style={{ padding: '3px' }}>
+              <option value="すべて">すべての季節</option>
+              <option value="通年">通年</option>
+              <option value="春夏">春夏（夏物）</option>
+              <option value="秋冬">秋冬（冬物）</option>
+            </select>
           </div>
+
+          {/* 🌟 【追加】検索用の袖・丈絞り込み */}
+          <div style={{ marginBottom: '10px' }}>
+            <label>袖・丈指定: </label>
+            <select value={searchSleeve} onChange={(e) => setSearchSleeve(e.target.value)} style={{ padding: '3px' }}>
+              <option value="すべて">すべての袖・丈</option>
+              <option value="長袖">長袖 / 長ズボン</option>
+              <option value="半袖">半袖 / 半ズボン</option>
+              <option value="七分袖">七分袖 / クロップド</option>
+              <option value="ノースリーブ">ノースリーブ / スカート</option>
+              <option value="その他">その他</option>
+            </select>
+          </div>
+
           <div>
             <label style={{ display: 'block', marginBottom: '5px' }}>キーワード検索（メモ）: </label>
             <input 
@@ -283,9 +332,15 @@ function App() {
               <div style={{ fontSize: '12px', fontWeight: 'bold', marginTop: '5px' }}>
                 {item.category} <span style={{ fontSize: '11px', color: '#666', fontWeight: 'normal' }}>({item.color})</span>
               </div>
+              
+              {/* 🌟 登録した季節や袖丈がカード上にバッジのように表示されます */}
+              <div style={{ fontSize: '10px', color: '#e67e22', margin: '2px 0' }}>
+                {item.season} / {item.sleeve}
+              </div>
+
               <div style={{ fontSize: '11px', color: '#666', minHeight: '32px', margin: '4px 0' }}>{item.memo}</div>
               
-              {/* 各カテゴリに応じたプレビュー選択ボタン */}
+              {/* 選択ボタン */}
               <div style={{ marginBottom: '8px' }}>
                 {item.category === 'アウター' && (
                   <button onClick={() => setSelectedOuter(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%' }}>アウターに選択</button>
@@ -298,9 +353,6 @@ function App() {
                 )}
                 {item.category === 'シューズ' && (
                   <button onClick={() => setSelectedShoes(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%' }}>シューズに選択</button>
-                )}
-                {(item.category === 'ワンピース' || item.category === '小物・バッグ') && (
-                  <span style={{ fontSize: '11px', color: '#999', display: 'block', padding: '4px 0' }}>一覧のみ表示</span>
                 )}
               </div>
 
