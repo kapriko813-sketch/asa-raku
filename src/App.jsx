@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import Dexie from 'dexie';
 
 // データベースの定義
-const db = new Dexie('asaRakuDatabase_v5');
+const db = new Dexie('asaRakuDatabase_v6');
 db.version(1).stores({
   clothes: '++id, category, memo, image, color' 
 });
 
 function App() {
-  // --- 🌟 タブ管理用の状態（'register', 'list', 'preview'） ---
+  // --- 🌟 タブ管理用の状態（'register' または 'preview' の2つだけ） ---
   const [activeTab, setActiveTab] = useState('register');
 
   // --- 登録用の状態 ---
@@ -82,8 +82,6 @@ function App() {
     document.getElementById('fileInput').value = '';
     alert('クローゼットに登録しました！');
     refreshClothes();
-    // 登録完了後、自動的に一覧タブに移動するとスムーズです
-    setActiveTab('list');
   };
 
   const handleDelete = async (id) => {
@@ -100,7 +98,7 @@ function App() {
     return matchCategory && matchWord;
   });
 
-  // スタイル用：タブの共通デザイン
+  // タブ用スタイル
   const tabStyle = (tabName) => ({
     flex: 1,
     padding: '12px 5px',
@@ -109,7 +107,7 @@ function App() {
     color: activeTab === tabName ? '#fff' : '#333',
     border: 'none',
     fontWeight: 'bold',
-    fontSize: '13px',
+    fontSize: '14px',
     textAlign: 'center',
     transition: '0.2s'
   });
@@ -118,16 +116,16 @@ function App() {
     <div translate="no" style={{ padding: '15px', fontFamily: 'sans-serif', maxWidth: '600px', margin: '0 auto' }}>
       <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>朝ラクローゼット</h2>
 
-      {/* 🌟 画面最上部のタブメニュー */}
+      {/* 🌟 上部の2面切り替えタブ */}
       <div style={{ display: 'flex', borderRadius: '8px', overflow: 'hidden', marginBottom: '20px', border: '1px solid #ccc' }}>
         <button onClick={() => setActiveTab('register')} style={tabStyle('register')}>服を登録</button>
-        <button onClick={() => setActiveTab('list')} style={tabStyle('list')}>服一覧・検索</button>
         <button onClick={() => setActiveTab('preview')} style={tabStyle('preview')}>組み合わせチェック</button>
       </div>
 
-      {/* ------------------ ① 服を登録タブ ------------------ */}
-      {activeTab === 'register' && (
-        <form onSubmit={handleAdd} style={{ padding: '15px', border: '1px solid #ccc', borderRadius: '8px', backgroundColor: '#fdfdfd' }}>
+      {/* ------------------ 上半分のエリア切り替え ------------------ */}
+      {activeTab === 'register' ? (
+        // ① 服を登録画面
+        <form onSubmit={handleAdd} style={{ marginBottom: '25px', padding: '15px', border: '1px solid #ccc', borderRadius: '8px', backgroundColor: '#fdfdfd' }}>
           <h3 style={{ marginTop: 0 }}>【洋服登録】</h3>
           <input id="fileInput" type="file" accept="image/*" onChange={handleImageChange} style={{ marginBottom: '15px' }} />
           
@@ -155,7 +153,7 @@ function App() {
             </select>
           </div>
 
-          <div style={{ marginBottom: '20px' }}>
+          <div style={{ marginBottom: '15px' }}>
             <input 
               type="text" 
               placeholder="服被り防止メモ（例: 山田さんランチ）" 
@@ -165,106 +163,101 @@ function App() {
             />
           </div>
           
-          <button type="submit" style={{ width: '100%', padding: '12px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold' }}>
+          <button type="submit" style={{ width: '100%', padding: '10px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold' }}>
             クローゼットに登録する
           </button>
         </form>
-      )}
-
-      {/* ------------------ ② 服一覧・検索タブ ------------------ */}
-      {activeTab === 'list' && (
-        <div>
-          {/* 検索・絞り込み条件エリア */}
-          <div style={{ marginBottom: '20px', padding: '15px', border: '1px solid #333', borderRadius: '8px', backgroundColor: '#f9f9f9' }}>
-            <h3 style={{ marginTop: 0 }}>【検索・条件絞り込み】</h3>
-            <div style={{ marginBottom: '10px' }}>
-              <label>カテゴリ指定: </label>
-              <select value={searchCategory} onChange={(e) => setSearchCategory(e.target.value)} style={{ padding: '5px' }}>
-                <option value="すべて">すべてのカテゴリ</option>
-                <option value="トップス">トップス</option>
-                <option value="ボトムス">ボトムス</option>
-                <option value="ワンピース">ワンピース</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '5px' }}>キーワード検索（メモ）: </label>
-              <input 
-                type="text" 
-                placeholder="人名やメモのキーワードを入力" 
-                value={searchWord}
-                onChange={(e) => setSearchWord(e.target.value)} 
-                style={{ padding: '8px', width: '95%', boxSizing: 'border-box' }}
-              />
-            </div>
-          </div>
-
-          {/* クローゼットの中身一覧 */}
-          <h3>【該当データ一覧 （{filteredClothes.length}件）】</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '15px' }}>
-            {filteredClothes.map((item) => (
-              <div key={item.id} style={{ border: '1px solid #ddd', padding: '10px', borderRadius: '6px', textAlign: 'center', backgroundColor: '#fff' }}>
-                <img src={item.image} alt="服" style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: '4px' }} />
-                <div style={{ fontSize: '12px', fontWeight: 'bold', marginTop: '5px' }}>
-                  {item.category} <span style={{ fontSize: '11px', color: '#666', fontWeight: 'normal' }}>({item.color})</span>
-                </div>
-                <div style={{ fontSize: '11px', color: '#666', minHeight: '32px', margin: '4px 0' }}>{item.memo}</div>
-                
-                {/* プレビュー選択ショートカット */}
-                <div style={{ marginBottom: '8px' }}>
-                  {item.category === 'トップス' && (
-                    <button onClick={() => { setSelectedTop(item); alert('トップスに選択しました。組み合わせタブで確認できます！'); }} style={{ fontSize: '11px', padding: '4px 5px', width: '100%' }}>プレビュー用に選択</button>
-                  )}
-                  {item.category === 'ボトムス' && (
-                    <button onClick={() => { setSelectedBottom(item); alert('ボトムスに選択しました。組み合わせタブで確認できます！'); }} style={{ fontSize: '11px', padding: '4px 5px', width: '100%' }}>プレビュー用に選択</button>
-                  )}
-                </div>
-
-                <button onClick={() => handleDelete(item.id)} style={{ padding: '2px 8px', fontSize: '11px', color: 'red', border: '1px solid red', borderRadius: '3px', backgroundColor: 'transparent' }}>
-                  削除
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ------------------ ③ 組み合わせチェックタブ ------------------ */}
-      {activeTab === 'preview' && (
-        <div style={{ padding: '15px', border: '1px solid #ccc', borderRadius: '8px', backgroundColor: '#f4fbf7', textAlign: 'center' }}>
+      ) : (
+        // ② 組み合わせチェック画面
+        <div style={{ marginBottom: '25px', padding: '15px', border: '2px solid #28a745', borderRadius: '8px', backgroundColor: '#f4fbf7', textAlign: 'center' }}>
           <h3 style={{ marginTop: 0 }}>【コーディネートプレビュー】</h3>
           
           <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '15px' }}>
-            {/* トップス選択枠 */}
+            {/* トップス */}
             <div style={{ width: '140px', minHeight: '160px', border: '1px dashed #ccc', padding: '5px', backgroundColor: '#fff' }}>
               <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#666' }}>トップス</div>
               {selectedTop ? (
                 <img src={selectedTop.image} alt="Top" style={{ width: '100%', height: '130px', objectFit: 'cover', marginTop: '5px' }} />
               ) : (
-                <p style={{ fontSize: '11px', color: '#999', marginTop: '45px' }}>一覧タブから<br />選択してください</p>
+                <p style={{ fontSize: '11px', color: '#999', marginTop: '45px' }}>下の一覧から<br />選択してください</p>
               )}
             </div>
             
-            {/* ボトムス選択枠 */}
+            {/* ボトムス */}
             <div style={{ width: '140px', minHeight: '160px', border: '1px dashed #ccc', padding: '5px', backgroundColor: '#fff' }}>
               <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#666' }}>ボトムス</div>
               {selectedBottom ? (
                 <img src={selectedBottom.image} alt="Bottom" style={{ width: '100%', height: '130px', objectFit: 'cover', marginTop: '5px' }} />
               ) : (
-                <p style={{ fontSize: '11px', color: '#999', marginTop: '45px' }}>一覧タブから<br />選択してください</p>
+                <p style={{ fontSize: '11px', color: '#999', marginTop: '45px' }}>下の一覧から<br />選択してください</p>
               )}
             </div>
           </div>
 
           {(selectedTop || selectedBottom) && (
-            <button 
-              onClick={() => { setSelectedTop(null); setSelectedBottom(null); }}
-              style={{ padding: '6px 15px', fontSize: '12px', borderRadius: '4px', cursor: 'pointer' }}
-            >
-              選択をリセット
+            <button onClick={() => { setSelectedTop(null); setSelectedBottom(null); }} style={{ padding: '6px 15px', fontSize: '12px' }}>
+              プレビューをリセット
             </button>
           )}
         </div>
       )}
+
+      <hr style={{ margin: '25px 0', border: '0', borderTop: '2px solid #ddd' }} />
+
+      {/* ------------------ 下半分のエリア（常に表示される服一覧＆検索） ------------------ */}
+      <div>
+        {/* 検索・絞り込み条件エリア */}
+        <div style={{ marginBottom: '20px', padding: '15px', border: '1px solid #333', borderRadius: '8px', backgroundColor: '#f9f9f9' }}>
+          <h3 style={{ marginTop: 0 }}>【検索・条件絞り込み】</h3>
+          <div style={{ marginBottom: '10px' }}>
+            <label>カテゴリ指定: </label>
+            <select value={searchCategory} onChange={(e) => setSearchCategory(e.target.value)} style={{ padding: '5px' }}>
+              <option value="すべて">すべてのカテゴリ</option>
+              <option value="トップス">トップス</option>
+              <option value="ボトムス">ボトムス</option>
+              <option value="ワンピース">ワンピース</option>
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '5px' }}>キーワード検索（メモ）: </label>
+            <input 
+              type="text" 
+              placeholder="人名やメモのキーワードを入力" 
+              value={searchWord}
+              onChange={(e) => setSearchWord(e.target.value)} 
+              style={{ padding: '8px', width: '95%', boxSizing: 'border-box' }}
+            />
+          </div>
+        </div>
+
+        {/* クローゼットの中身一覧 */}
+        <h3>【該当データ一覧 （{filteredClothes.length}件）】</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '15px' }}>
+          {filteredClothes.map((item) => (
+            <div key={item.id} style={{ border: '1px solid #ddd', padding: '10px', borderRadius: '6px', textAlign: 'center', backgroundColor: '#fff' }}>
+              <img src={item.image} alt="服" style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: '4px' }} />
+              <div style={{ fontSize: '12px', fontWeight: 'bold', marginTop: '5px' }}>
+                {item.category} <span style={{ fontSize: '11px', color: '#666', fontWeight: 'normal' }}>({item.color})</span>
+              </div>
+              <div style={{ fontSize: '11px', color: '#666', minHeight: '32px', margin: '4px 0' }}>{item.memo}</div>
+              
+              {/* プレビュー選択ボタン（組み合わせチェックタブを選んでいる時に特に真価を発揮します） */}
+              <div style={{ marginBottom: '8px' }}>
+                {item.category === 'トップス' && (
+                  <button onClick={() => setSelectedTop(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%', backgroundColor: '#e9ecef', border: '1px solid #ced4da', borderRadius: '3px', cursor: 'pointer' }}>トップスに選択</button>
+                )}
+                {item.category === 'ボトムス' && (
+                  <button onClick={() => setSelectedBottom(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%', backgroundColor: '#e9ecef', border: '1px solid #ced4da', borderRadius: '3px', cursor: 'pointer' }}>ボトムスに選択</button>
+                )}
+              </div>
+
+              <button onClick={() => handleDelete(item.id)} style={{ padding: '2px 8px', fontSize: '11px', color: 'red', border: '1px solid red', borderRadius: '3px', backgroundColor: 'transparent', cursor: 'pointer' }}>
+                削除
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
