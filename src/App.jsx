@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Dexie from 'dexie';
 
 // データベースの定義
-const db = new Dexie('asaRakuDatabase_v10');
+const db = new Dexie('asaRakuDatabase_v11');
 db.version(1).stores({
   clothes: '++id, category, memo, image, color, season, sleeve' 
 });
@@ -10,6 +10,9 @@ db.version(1).stores({
 function App() {
   // --- タブ管理用の状態 ---
   const [activeTab, setActiveTab] = useState('register');
+
+  // --- 🌟 検索エリアの開閉状態を管理する状態 ---
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   // --- 登録用の状態 ---
   const [category, setCategory] = useState('トップス');
@@ -21,7 +24,7 @@ function App() {
   
   // --- 検索用の状態 ---
   const [searchCategory, setSearchCategory] = useState('すべて');
-  const [searchColor, setSearchColor] = useState('すべて'); // 🌟 【追加】検索用（色）
+  const [searchColor, setSearchColor] = useState('すべて'); 
   const [searchSeason, setSearchSeason] = useState('すべて'); 
   const [searchSleeve, setSearchSleeve] = useState('すべて'); 
   const [searchWord, setSearchWord] = useState('');
@@ -106,12 +109,9 @@ function App() {
     refreshClothes();
   };
 
-  // 🌟 【変更】削除時に確認ダイアログ（ワンクッション）を挟む
+  // 削除時に確認ダイアログ
   const handleDelete = async (id, categoryName) => {
-    // confirmを使うことで、ユーザーに「はい/いいえ」を一度問いかけます
     const isConfirmed = window.confirm(`本当にこの${categoryName}をクローゼットから削除しますか？\n（一度削除すると元に戻せません）`);
-    
-    // キャンセルされた場合は処理を中断する
     if (!isConfirmed) return;
 
     if (selectedOuter?.id === id) setSelectedOuter(null);
@@ -123,10 +123,10 @@ function App() {
     refreshClothes();
   };
 
-  // 🌟 フィルタリング処理（色の条件を追加）
+  // フィルタリング処理
   const filteredClothes = clothesList.filter((item) => {
     const matchCategory = searchCategory === 'すべて' || item.category === searchCategory;
-    const matchColor = searchColor === 'すべて' || item.color === searchColor; // 🌟 色の絞り込み
+    const matchColor = searchColor === 'すべて' || item.color === searchColor; 
     const matchSeason = searchSeason === 'すべて' || item.season === searchSeason;
     const matchSleeve = searchSleeve === 'すべて' || item.sleeve === searchSleeve;
     const matchWord = item.memo.toLowerCase().includes(searchWord.toLowerCase());
@@ -284,66 +284,88 @@ function App() {
 
       {/* ------------------ 下半分のエリア（常に表示される服一覧＆検索） ------------------ */}
       <div>
+        {/* 🌟 【スッキリ改良】検索エリア */}
         <div style={{ marginBottom: '20px', padding: '15px', border: '1px solid #333', borderRadius: '8px', backgroundColor: '#f9f9f9' }}>
-          <h3 style={{ marginTop: 0 }}>【検索・条件絞り込み】</h3>
           
-          <div style={{ marginBottom: '10px' }}>
-            <label>カテゴリ: </label>
-            <select value={searchCategory} onChange={(e) => setSearchCategory(e.target.value)} style={{ padding: '3px' }}>
-              <option value="すべて">すべてのカテゴリ</option>
-              <option value="トップス">トップス</option>
-              <option value="ボトムス">ボトムス</option>
-              <option value="ワンピース">ワンピース</option>
-              <option value="アウター">アウター</option>
-              <option value="シューズ">シューズ</option>
-              <option value="小物・バッグ">小物・バッグ</option>
-            </select>
-
-            {/* 🌟 【追加】検索用の色絞り込みセレクトボックス */}
-            <label style={{ marginLeft: '10px' }}>色: </label>
-            <select value={searchColor} onChange={(e) => setSearchColor(e.target.value)} style={{ padding: '3px' }}>
-              <option value="すべて">すべての色</option>
-              <option value="白">白</option>
-              <option value="黒">黒</option>
-              <option value="青">青</option>
-              <option value="赤">赤</option>
-              <option value="ベージュ">ベージュ</option>
-              <option value="グレー">グレー</option>
-              <option value="その他">その他</option>
-            </select>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <h3 style={{ margin: 0, fontSize: '16px' }}>【クローゼット検索】</h3>
+            {/* 開閉を切り替えるスイッチ用ボタン */}
+            <button 
+              type="button"
+              onClick={() => setIsSearchOpen(!isSearchOpen)}
+              style={{ padding: '4px 10px', fontSize: '12px', cursor: 'pointer', borderRadius: '4px', border: '1px solid #666', backgroundColor: '#fff' }}
+            >
+              {isSearchOpen ? '🔼 詳細条件を隠す' : '⚙️ 詳細条件を選ぶ'}
+            </button>
           </div>
 
-          <div style={{ marginBottom: '10px' }}>
-            <label>季節: </label>
-            <select value={searchSeason} onChange={(e) => setSearchSeason(e.target.value)} style={{ padding: '3px' }}>
-              <option value="すべて">すべての季節</option>
-              <option value="通年">通年</option>
-              <option value="春夏">春夏（夏物）</option>
-              <option value="秋冬">秋冬（冬物）</option>
-              <option value="指定なし">指定なし</option>
-            </select>
-          </div>
+          {/* 🌟詳細条件（isSearchOpenがtrueの時だけ展開する） */}
+          {isSearchOpen && (
+            <div style={{ padding: '10px', backgroundColor: '#fff', borderRadius: '6px', border: '1px solid #ddd', marginBottom: '10px', animation: 'fadeIn 0.3s' }}>
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 'bold' }}>カテゴリ: </label>
+                <select value={searchCategory} onChange={(e) => setSearchCategory(e.target.value)} style={{ padding: '3px', fontSize: '13px' }}>
+                  <option value="すべて">すべてのカテゴリ</option>
+                  <option value="トップス">トップス</option>
+                  <option value="ボトムス">ボトムス</option>
+                  <option value="ワンピース">ワンピース</option>
+                  <option value="アウター">アウター</option>
+                  <option value="シューズ">シューズ</option>
+                  <option value="小物・バッグ">小物・バッグ</option>
+                </select>
 
-          {(searchCategory === 'すべて' || searchCategory === 'トップス' || searchCategory === 'ワンピース' || searchCategory === 'ボトムス') && (
-            <div style={{ marginBottom: '10px' }}>
-              <label>袖・丈指定: </label>
-              <select value={searchSleeve} onChange={(e) => setSearchSleeve(e.target.value)} style={{ padding: '3px' }}>
-                <option value="すべて">すべての袖・丈</option>
-                <option value="長袖">長袖</option>
-                <option value="半袖">半袖</option>
-                <option value="七分袖">七分袖</option>
-                <option value="ノースリーブ">ノースリーブ</option>
-                <option value="長ズボン">長ズボン / ロング</option>
-                <option value="半ズボン">半ズボン / ショート</option>
-                <option value="七分丈">七分丈 / クロップド</option>
-                <option value="スカート">スカート</option>
-              </select>
+                <label style={{ marginLeft: '10px', fontSize: '13px', fontWeight: 'bold' }}>色: </label>
+                <select value={searchColor} onChange={(e) => setSearchColor(e.target.value)} style={{ padding: '3px', fontSize: '13px' }}>
+                  <option value="すべて">すべての色</option>
+                  <option value="白">白</option>
+                  <option value="黒">黒</option>
+                  <option value="青">青</option>
+                  <option value="赤">赤</option>
+                  <option value="ベージュ">ベージュ</option>
+                  <option value="グレー">グレー</option>
+                  <option value="その他">その他</option>
+                </select>
+              </div>
+
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 'bold' }}>季節: </label>
+                <select value={searchSeason} onChange={(e) => setSearchSeason(e.target.value)} style={{ padding: '3px', fontSize: '13px' }}>
+                  <option value="すべて">すべての季節</option>
+                  <option value="通年">通年</option>
+                  <option value="春夏">春夏（夏物）</option>
+                  <option value="秋冬">秋冬（冬物）</option>
+                  <option value="指定なし">指定なし</option>
+                </select>
+              </div>
+
+              {(searchCategory === 'すべて' || searchCategory === 'トップス' || searchCategory === 'ワンピース' || searchCategory === 'ボトムス') && (
+                <div style={{ marginBottom: '5px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>袖・丈: </label>
+                  <select value={searchSleeve} onChange={(e) => setSearchSleeve(e.target.value)} style={{ padding: '3px', fontSize: '13px' }}>
+                    <option value="すべて">すべての袖・丈</option>
+                    <option value="長袖">長袖</option>
+                    <option value="半袖">半袖</option>
+                    <option value="七分袖">七分袖</option>
+                    <option value="ノースリーブ">ノースリーブ</option>
+                    <option value="長ズボン">長ズボン / ロング</option>
+                    <option value="半ズボン">半ズボン / ショート</option>
+                    <option value="七分丈">七分丈 / クロップド</option>
+                    <option value="スカート">スカート</option>
+                  </select>
+                </div>
+              )}
             </div>
           )}
 
+          {/* キーワード検索（最も使うため、ここだけは常に表に出しておく） */}
           <div>
-            <label style={{ display: 'block', marginBottom: '5px' }}>キーワード検索（メモ）: </label>
-            <input type="text" placeholder="人名やメモのキーワードを入力" value={searchWord} onChange={(e) => setSearchWord(e.target.value)} style={{ padding: '8px', width: '95%', boxSizing: 'border-box' }} />
+            <input 
+              type="text" 
+              placeholder="🔍 メモのキーワードで爆速検索（人名など）" 
+              value={searchWord} 
+              onChange={(e) => setSearchWord(e.target.value)} 
+              style={{ padding: '8px', width: '95%', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #ccc' }} 
+            />
           </div>
         </div>
 
@@ -370,7 +392,6 @@ function App() {
                 {item.category === 'シューズ' && <button onClick={() => setSelectedShoes(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%' }}>シューズに選択</button>}
               </div>
 
-              {/* 🌟 削除関数にアイテムの情報を渡すように調整 */}
               <button onClick={() => handleDelete(item.id, item.category)} style={{ padding: '2px 8px', fontSize: '11px', color: 'red', border: '1px solid red', borderRadius: '3px', backgroundColor: 'transparent', cursor: 'pointer' }}>削除</button>
             </div>
           ))}
