@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import Dexie from 'dexie';
 
-// データベースの定義（ワンピースと小物・バッグのリンク用IDを追加）
+// データベースの定義
 const db = new Dexie('asaRakuDatabase_v14');
 db.version(1).stores({
   clothes: '++id, category, memo, image, color, season, sleeve',
-  history: '++id, date, image, memo, outerId, topId, bottomId, shoesId, pieceId, accessoryId' // 🌟 カラム拡張
+  history: '++id, date, image, memo, outerId, topId, bottomId, shoesId, pieceId, accessoryId'
 });
 
 function App() {
@@ -19,14 +19,14 @@ function App() {
   const [isDragOverRegister, setIsDragOverRegister] = useState(false);
   const [isDragOverHistory, setIsDragOverHistory] = useState(false);
 
-  // --- 🌟 組み合わせ表示切り替え用のチェックボックス状態 ---
+  // --- 組み合わせ表示切り替え用のチェックボックス状態 ---
   const [visibleSlots, setVisibleSlots] = useState({
     outer: true,
     top: true,
     bottom: true,
-    piece: false, // 初期はオフ（必要な時にチェック）
+    piece: false, 
     shoes: true,
-    accessory: true // 🌟 小物・バッグを標準で追加！
+    accessory: true 
   });
 
   // --- ① 服の登録用の状態 ---
@@ -44,13 +44,13 @@ function App() {
   const [searchSleeve, setSearchSleeve] = useState('すべて'); 
   const [searchWord, setSearchWord] = useState('');
 
-  // --- ③ コーディネートプレビューの状態（ワンピース・小物・バッグを追加） ---
+  // --- ③ コーディネートプレビューの状態 ---
   const [selectedOuter, setSelectedOuter] = useState(null);
   const [selectedTop, setSelectedTop] = useState(null);
   const [selectedBottom, setSelectedBottom] = useState(null);
-  const [selectedPiece, setSelectedPiece] = useState(null); // 🌟 ワンピース
+  const [selectedPiece, setSelectedPiece] = useState(null); 
   const [selectedShoes, setSelectedShoes] = useState(null);
-  const [selectedAccessory, setSelectedAccessory] = useState(null); // 🌟 小物・バッグ
+  const [selectedAccessory, setSelectedAccessory] = useState(null); 
 
   // --- ④ 「今日着た服」タブ用の状態 ---
   const [historyDate, setHistoryDate] = useState(new Date().toISOString().split('T')[0]);
@@ -89,7 +89,6 @@ function App() {
     }
   };
 
-  // 画像リサイズ共通ロジック
   const resizeImage = (file, callback) => {
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -154,7 +153,6 @@ function App() {
     e.preventDefault();
     if (!historyImage) return alert('全身の着用写真を選択またはドラッグしてください');
 
-    // 表示（有効）になっているスロットのデータのみを保存
     await db.history.add({
       date: historyDate,
       image: historyImage,
@@ -162,9 +160,9 @@ function App() {
       outerId: visibleSlots.outer ? (selectedOuter?.id || null) : null,
       topId: visibleSlots.top ? (selectedTop?.id || null) : null,
       bottomId: visibleSlots.bottom ? (selectedBottom?.id || null) : null,
-      pieceId: visibleSlots.piece ? (selectedPiece?.id || null) : null, // 🌟
+      pieceId: visibleSlots.piece ? (selectedPiece?.id || null) : null, 
       shoesId: visibleSlots.shoes ? (selectedShoes?.id || null) : null,
-      accessoryId: visibleSlots.accessory ? (selectedAccessory?.id || null) : null // 🌟
+      accessoryId: visibleSlots.accessory ? (selectedAccessory?.id || null) : null 
     });
 
     setHistoryMemo('');
@@ -228,6 +226,7 @@ function App() {
     transition: 'all 0.2s ease'
   });
 
+  // 🌟 アイテム枠の共通スタイル（縮まないように flexShrink: 0 を追加）
   const previewBoxStyle = {
     width: '100px',
     minHeight: '130px',
@@ -235,10 +234,10 @@ function App() {
     padding: '5px',
     backgroundColor: '#fff',
     fontSize: '11px',
-    textAlign: 'center'
+    textAlign: 'center',
+    flexShrink: 0 
   };
 
-  // チェックボックス切り替え用
   const handleCheckboxChange = (slot) => {
     setVisibleSlots(prev => ({ ...prev, [slot]: !prev[slot] }));
   };
@@ -305,18 +304,19 @@ function App() {
         <div style={{ marginBottom: '25px', padding: '15px', border: '2px solid #28a745', borderRadius: '8px', backgroundColor: '#f4fbf7' }}>
           <h3 style={{ marginTop: 0, textAlign: 'center' }}>【コーディネートプレビュー】</h3>
           
-          {/* 🌟 チェックボックスで表示項目を管理 */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center', padding: '8px', backgroundColor: '#fff', borderRadius: '6px', border: '1px solid #ddd', marginBottom: '15px', fontSize: '12px' }}>
-            <span style={{ fontWeight: 'bold', color: '#28a745' }}>合わせる項目：</span>
-            <label><input type="checkbox" checked={visibleSlots.outer} onChange={() => handleCheckboxChange('outer')} /> アウター</label>
-            <label><input type="checkbox" checked={visibleSlots.top} onChange={() => handleCheckboxChange('top')} /> トップス</label>
-            <label><input type="checkbox" checked={visibleSlots.bottom} onChange={() => handleCheckboxChange('bottom')} /> ボトムス</label>
-            <label style={{ color: '#b80000', fontWeight: 'bold' }}><input type="checkbox" checked={visibleSlots.piece} onChange={() => handleCheckboxChange('piece')} /> 👗ワンピース</label>
-            <label><input type="checkbox" checked={visibleSlots.shoes} onChange={() => handleCheckboxChange('shoes')} /> シューズ</label>
-            <label style={{ color: '#8e44ad', fontWeight: 'bold' }}><input type="checkbox" checked={visibleSlots.accessory} onChange={() => handleCheckboxChange('accessory')} /> 💍小物・バッグ</label>
+          {/* 🌟 1行にすっきり収まるように余白とサイズを最適化 */}
+          <div style={{ display: 'flex', flexWrap: 'nowrap', overflowX: 'auto', gap: '8px', padding: '8px', backgroundColor: '#fff', borderRadius: '6px', border: '1px solid #ddd', marginBottom: '15px', fontSize: '11px', whiteSpace: 'nowrap' }}>
+            <span style={{ fontWeight: 'bold', color: '#28a745', flexShrink: 0 }}>項目：</span>
+            <label style={{ flexShrink: 0 }}><input type="checkbox" checked={visibleSlots.outer} onChange={() => handleCheckboxChange('outer')} /> アウター</label>
+            <label style={{ flexShrink: 0 }}><input type="checkbox" checked={visibleSlots.top} onChange={() => handleCheckboxChange('top')} /> トップス</label>
+            <label style={{ flexShrink: 0 }}><input type="checkbox" checked={visibleSlots.bottom} onChange={() => handleCheckboxChange('bottom')} /> ボトムス</label>
+            <label style={{ color: '#b80000', fontWeight: 'bold', flexShrink: 0 }}><input type="checkbox" checked={visibleSlots.piece} onChange={() => handleCheckboxChange('piece')} /> ワンピ</label>
+            <label style={{ flexShrink: 0 }}><input type="checkbox" checked={visibleSlots.shoes} onChange={() => handleCheckboxChange('shoes')} /> 靴</label>
+            <label style={{ color: '#8e44ad', fontWeight: 'bold', flexShrink: 0 }}><input type="checkbox" checked={visibleSlots.accessory} onChange={() => handleCheckboxChange('accessory')} /> 小物</label>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '15px' }}>
+          {/* 🌟 横スクロールで1行に美しく収めるコンテナに変更 */}
+          <div style={{ display: 'flex', justifyContent: 'flex-start', gap: '8px', overflowX: 'auto', paddingBottom: '10px', marginBottom: '15px' }}>
             {visibleSlots.outer && (
               <div style={previewBoxStyle}>
                 <div style={{ fontWeight: 'bold', color: '#666' }}>アウター</div>
@@ -335,7 +335,6 @@ function App() {
                 {selectedBottom ? <img src={selectedBottom.image} alt="Bottom" style={{ width: '100%', height: '100px', objectFit: 'cover', marginTop: '5px' }} /> : <p style={{ color: '#999', marginTop: '30px' }}>未選択</p>}
               </div>
             )}
-            {/* 🌟 ワンピーススロット */}
             {visibleSlots.piece && (
               <div style={{ ...previewBoxStyle, borderColor: '#b80000' }}>
                 <div style={{ fontWeight: 'bold', color: '#b80000' }}>ワンピース</div>
@@ -348,7 +347,6 @@ function App() {
                 {selectedShoes ? <img src={selectedShoes.image} alt="Shoes" style={{ width: '100%', height: '100px', objectFit: 'cover', marginTop: '5px' }} /> : <p style={{ color: '#999', marginTop: '30px' }}>未選択</p>}
               </div>
             )}
-            {/* 🌟 小物・バッグスロット */}
             {visibleSlots.accessory && (
               <div style={{ ...previewBoxStyle, borderColor: '#8e44ad' }}>
                 <div style={{ fontWeight: 'bold', color: '#8e44ad' }}>小物・バッグ</div>
@@ -437,7 +435,6 @@ function App() {
                 <div style={{ fontSize: '12px', fontWeight: 'bold', marginTop: '5px' }}>{item.category} <span>({item.color})</span></div>
                 <div style={{ fontSize: '11px', color: '#666', minHeight: '32px', margin: '4px 0' }}>{item.memo}</div>
                 
-                {/* 🌟 選択ボタンにワンピースと小物の割り当てを追加 */}
                 <div style={{ marginBottom: '8px' }}>
                   {item.category === 'アウター' && <button onClick={() => setSelectedOuter(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%' }}>アウターに選択</button>}
                   {item.category === 'トップス' && <button onClick={() => setSelectedTop(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%' }}>トップスに選択</button>}
@@ -463,9 +460,9 @@ function App() {
                 const linkedOuter = clothesList.find(c => c.id === hist.outerId);
                 const linkedTop = clothesList.find(c => c.id === hist.topId);
                 const linkedBottom = clothesList.find(c => c.id === hist.bottomId);
-                const linkedPiece = clothesList.find(c => c.id === hist.pieceId); // 🌟
+                const linkedPiece = clothesList.find(c => c.id === hist.pieceId); 
                 const linkedShoes = clothesList.find(c => c.id === hist.shoesId);
-                const linkedAccessory = clothesList.find(c => c.id === hist.accessoryId); // 🌟
+                const linkedAccessory = clothesList.find(c => c.id === hist.accessoryId); 
 
                 return (
                   <div key={hist.id} style={{ display: 'flex', border: '1px solid #e67e22', borderRadius: '8px', padding: '12px', backgroundColor: '#fff' }}>
