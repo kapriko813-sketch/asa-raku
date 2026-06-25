@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Dexie from 'dexie';
 
 // データベースの定義
-const db = new Dexie('asaRakuDatabase_v9');
+const db = new Dexie('asaRakuDatabase_v10');
 db.version(1).stores({
   clothes: '++id, category, memo, image, color, season, sleeve' 
 });
@@ -21,6 +21,7 @@ function App() {
   
   // --- 検索用の状態 ---
   const [searchCategory, setSearchCategory] = useState('すべて');
+  const [searchColor, setSearchColor] = useState('すべて'); // 🌟 【追加】検索用（色）
   const [searchSeason, setSearchSeason] = useState('すべて'); 
   const [searchSleeve, setSearchSleeve] = useState('すべて'); 
   const [searchWord, setSearchWord] = useState('');
@@ -43,18 +44,16 @@ function App() {
     setClothesList(allClothes);
   };
 
-  // カテゴリが変更されたら、自動で適切な初期値にリセットする
   const handleCategoryChange = (e) => {
     const nextCategory = e.target.value;
     setCategory(nextCategory);
     
-    // カテゴリごとにデフォルトの袖・丈設定を最適化
     if (nextCategory === 'ボトムス') {
       setSleeve('長ズボン');
     } else if (nextCategory === 'トップス' || nextCategory === 'ワンピース') {
       setSleeve('長袖');
     } else {
-      setSleeve('なし'); // 袖の概念がないカテゴリ用
+      setSleeve('なし'); 
     }
   };
 
@@ -107,23 +106,32 @@ function App() {
     refreshClothes();
   };
 
-  const handleDelete = async (id) => {
+  // 🌟 【変更】削除時に確認ダイアログ（ワンクッション）を挟む
+  const handleDelete = async (id, categoryName) => {
+    // confirmを使うことで、ユーザーに「はい/いいえ」を一度問いかけます
+    const isConfirmed = window.confirm(`本当にこの${categoryName}をクローゼットから削除しますか？\n（一度削除すると元に戻せません）`);
+    
+    // キャンセルされた場合は処理を中断する
+    if (!isConfirmed) return;
+
     if (selectedOuter?.id === id) setSelectedOuter(null);
     if (selectedTop?.id === id) setSelectedTop(null);
     if (selectedBottom?.id === id) setSelectedBottom(null);
     if (selectedShoes?.id === id) setSelectedShoes(null);
+    
     await db.clothes.delete(id);
     refreshClothes();
   };
 
-  // フィルタリング処理
+  // 🌟 フィルタリング処理（色の条件を追加）
   const filteredClothes = clothesList.filter((item) => {
     const matchCategory = searchCategory === 'すべて' || item.category === searchCategory;
+    const matchColor = searchColor === 'すべて' || item.color === searchColor; // 🌟 色の絞り込み
     const matchSeason = searchSeason === 'すべて' || item.season === searchSeason;
     const matchSleeve = searchSleeve === 'すべて' || item.sleeve === searchSleeve;
     const matchWord = item.memo.toLowerCase().includes(searchWord.toLowerCase());
     
-    return matchCategory && matchSeason && matchSleeve && matchWord;
+    return matchCategory && matchColor && matchSeason && matchSleeve && matchWord;
   });
 
   // タブ用スタイル
@@ -195,9 +203,7 @@ function App() {
             </select>
           </div>
 
-          {/* 🌟 【スマート化】カテゴリに応じた条件の動的表示表示 */}
           <div style={{ marginBottom: '15px' }}>
-            {/* 季節：基本すべてに必要だが、小物・バッグには不要な場合もあるため選択肢として「指定なし」を選べるように改善 */}
             <label>季節: </label>
             <select value={season} onChange={(e) => setSeason(e.target.value)} style={{ padding: '5px' }}>
               <option value="通年">通年</option>
@@ -206,7 +212,6 @@ function App() {
               {category === '小物・バッグ' && <option value="指定なし">指定なし（季節感なし）</option>}
             </select>
 
-            {/* 袖・丈：トップス・ワンピース・ボトムスに選ばれたときだけ、適切な中身を出現させる */}
             {(category === 'トップス' || category === 'ワンピース') && (
               <span style={{ marginLeft: '15px' }}>
                 <label>袖の長さ: </label>
@@ -294,7 +299,22 @@ function App() {
               <option value="小物・バッグ">小物・バッグ</option>
             </select>
 
-            <label style={{ marginLeft: '10px' }}>季節: </label>
+            {/* 🌟 【追加】検索用の色絞り込みセレクトボックス */}
+            <label style={{ marginLeft: '10px' }}>色: </label>
+            <select value={searchColor} onChange={(e) => setSearchColor(e.target.value)} style={{ padding: '3px' }}>
+              <option value="すべて">すべての色</option>
+              <option value="白">白</option>
+              <option value="黒">黒</option>
+              <option value="青">青</option>
+              <option value="赤">赤</option>
+              <option value="ベージュ">ベージュ</option>
+              <option value="グレー">グレー</option>
+              <option value="その他">その他</option>
+            </select>
+          </div>
+
+          <div style={{ marginBottom: '10px' }}>
+            <label>季節: </label>
             <select value={searchSeason} onChange={(e) => setSearchSeason(e.target.value)} style={{ padding: '3px' }}>
               <option value="すべて">すべての季節</option>
               <option value="通年">通年</option>
@@ -304,7 +324,6 @@ function App() {
             </select>
           </div>
 
-          {/* 🌟 検索エリアでも、袖・丈の絞り込みは関係あるカテゴリを選んでいる時だけ表示させてスマートに */}
           {(searchCategory === 'すべて' || searchCategory === 'トップス' || searchCategory === 'ワンピース' || searchCategory === 'ボトムス') && (
             <div style={{ marginBottom: '10px' }}>
               <label>袖・丈指定: </label>
@@ -351,7 +370,8 @@ function App() {
                 {item.category === 'シューズ' && <button onClick={() => setSelectedShoes(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%' }}>シューズに選択</button>}
               </div>
 
-              <button onClick={() => handleDelete(item.id)} style={{ padding: '2px 8px', fontSize: '11px', color: 'red', border: '1px solid red', borderRadius: '3px', backgroundColor: 'transparent', cursor: 'pointer' }}>削除</button>
+              {/* 🌟 削除関数にアイテムの情報を渡すように調整 */}
+              <button onClick={() => handleDelete(item.id, item.category)} style={{ padding: '2px 8px', fontSize: '11px', color: 'red', border: '1px solid red', borderRadius: '3px', backgroundColor: 'transparent', cursor: 'pointer' }}>削除</button>
             </div>
           ))}
         </div>
