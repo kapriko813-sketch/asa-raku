@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import Dexie from 'dexie';
 
-// データベースの定義
-const db = new Dexie('asaRakuDatabase_v13');
+// データベースの定義（ワンピースと小物・バッグのリンク用IDを追加）
+const db = new Dexie('asaRakuDatabase_v14');
 db.version(1).stores({
   clothes: '++id, category, memo, image, color, season, sleeve',
-  history: '++id, date, image, memo, outerId, topId, bottomId, shoesId'
+  history: '++id, date, image, memo, outerId, topId, bottomId, shoesId, pieceId, accessoryId' // 🌟 カラム拡張
 });
 
 function App() {
@@ -15,9 +15,19 @@ function App() {
   // --- 検索エリアの開閉状態 ---
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-  // --- 🌟 ドラッグ状態を管理する状態（枠の色変化用） ---
+  // --- ドラッグ状態を管理する状態 ---
   const [isDragOverRegister, setIsDragOverRegister] = useState(false);
   const [isDragOverHistory, setIsDragOverHistory] = useState(false);
+
+  // --- 🌟 組み合わせ表示切り替え用のチェックボックス状態 ---
+  const [visibleSlots, setVisibleSlots] = useState({
+    outer: true,
+    top: true,
+    bottom: true,
+    piece: false, // 初期はオフ（必要な時にチェック）
+    shoes: true,
+    accessory: true // 🌟 小物・バッグを標準で追加！
+  });
 
   // --- ① 服の登録用の状態 ---
   const [category, setCategory] = useState('トップス');
@@ -34,11 +44,13 @@ function App() {
   const [searchSleeve, setSearchSleeve] = useState('すべて'); 
   const [searchWord, setSearchWord] = useState('');
 
-  // --- ③ コーディネートプレビューの状態 ---
+  // --- ③ コーディネートプレビューの状態（ワンピース・小物・バッグを追加） ---
   const [selectedOuter, setSelectedOuter] = useState(null);
   const [selectedTop, setSelectedTop] = useState(null);
   const [selectedBottom, setSelectedBottom] = useState(null);
+  const [selectedPiece, setSelectedPiece] = useState(null); // 🌟 ワンピース
   const [selectedShoes, setSelectedShoes] = useState(null);
+  const [selectedAccessory, setSelectedAccessory] = useState(null); // 🌟 小物・バッグ
 
   // --- ④ 「今日着た服」タブ用の状態 ---
   const [historyDate, setHistoryDate] = useState(new Date().toISOString().split('T')[0]);
@@ -102,7 +114,6 @@ function App() {
     reader.readAsDataURL(file);
   };
 
-  // 通常ファイル選択時の処理
   const handleImageChange = (e) => {
     if (e.target.files[0]) resizeImage(e.target.files[0], setImageSrc);
   };
@@ -111,24 +122,18 @@ function App() {
     if (e.target.files[0]) resizeImage(e.target.files[0], setHistoryImage);
   };
 
-  // 🌟 ドラッグ＆ドロップ時の処理（服登録用）
   const handleDropRegister = (e) => {
     e.preventDefault();
     setIsDragOverRegister(false);
     const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-      resizeImage(file, setImageSrc);
-    }
+    if (file && file.type.startsWith('image/')) resizeImage(file, setImageSrc);
   };
 
-  // 🌟 ドラッグ＆ドロップ時の処理（履歴用）
   const handleDropHistory = (e) => {
     e.preventDefault();
     setIsDragOverHistory(false);
     const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-      resizeImage(file, setHistoryImage);
-    }
+    if (file && file.type.startsWith('image/')) resizeImage(file, setHistoryImage);
   };
 
   const handleAdd = async (e) => {
@@ -149,14 +154,17 @@ function App() {
     e.preventDefault();
     if (!historyImage) return alert('全身の着用写真を選択またはドラッグしてください');
 
+    // 表示（有効）になっているスロットのデータのみを保存
     await db.history.add({
       date: historyDate,
       image: historyImage,
       memo: historyMemo || '着用メモなし',
-      outerId: selectedOuter?.id || null,
-      topId: selectedTop?.id || null,
-      bottomId: selectedBottom?.id || null,
-      shoesId: selectedShoes?.id || null
+      outerId: visibleSlots.outer ? (selectedOuter?.id || null) : null,
+      topId: visibleSlots.top ? (selectedTop?.id || null) : null,
+      bottomId: visibleSlots.bottom ? (selectedBottom?.id || null) : null,
+      pieceId: visibleSlots.piece ? (selectedPiece?.id || null) : null, // 🌟
+      shoesId: visibleSlots.shoes ? (selectedShoes?.id || null) : null,
+      accessoryId: visibleSlots.accessory ? (selectedAccessory?.id || null) : null // 🌟
     });
 
     setHistoryMemo('');
@@ -172,7 +180,9 @@ function App() {
     if (selectedOuter?.id === id) setSelectedOuter(null);
     if (selectedTop?.id === id) setSelectedTop(null);
     if (selectedBottom?.id === id) setSelectedBottom(null);
+    if (selectedPiece?.id === id) setSelectedPiece(null);
     if (selectedShoes?.id === id) setSelectedShoes(null);
+    if (selectedAccessory?.id === id) setSelectedAccessory(null);
     
     await db.clothes.delete(id);
     refreshClothes();
@@ -207,7 +217,6 @@ function App() {
     transition: '0.2s'
   });
 
-  // 🌟 ドロップゾーンの共通スタイル
   const dropZoneStyle = (isDragOver) => ({
     border: isDragOver ? '2px dashed #007bff' : '2px dashed #ccc',
     backgroundColor: isDragOver ? '#e6f2ff' : '#fafafa',
@@ -218,6 +227,21 @@ function App() {
     marginBottom: '15px',
     transition: 'all 0.2s ease'
   });
+
+  const previewBoxStyle = {
+    width: '100px',
+    minHeight: '130px',
+    border: '1px dashed #ccc',
+    padding: '5px',
+    backgroundColor: '#fff',
+    fontSize: '11px',
+    textAlign: 'center'
+  };
+
+  // チェックボックス切り替え用
+  const handleCheckboxChange = (slot) => {
+    setVisibleSlots(prev => ({ ...prev, [slot]: !prev[slot] }));
+  };
 
   return (
     <div translate="no" style={{ padding: '15px', fontFamily: 'sans-serif', maxWidth: '600px', margin: '0 auto' }}>
@@ -234,18 +258,8 @@ function App() {
         <form onSubmit={handleAdd} style={{ marginBottom: '25px', padding: '15px', border: '1px solid #ccc', borderRadius: '8px', backgroundColor: '#fdfdfd' }}>
           <h3 style={{ marginTop: 0 }}>【洋服登録】</h3>
           
-          {/* 🌟 ドラッグ＆ドロップ 兼 クリックエリア */}
-          <div 
-            style={dropZoneStyle(isDragOverRegister)}
-            onDragOver={(e) => { e.preventDefault(); setIsDragOverRegister(true); }}
-            onDragLeave={() => setIsDragOverRegister(false)}
-            onDrop={handleDropRegister}
-            onClick={() => document.getElementById('fileInput').click()}
-          >
-            <p style={{ margin: 0, fontSize: '13px', color: '#666' }}>
-              📸 ここに画像を<b>ドラッグ＆ドロップ</b><br />または<b>クリックしてファイルを選択</b>
-            </p>
-            {/* 見えない本物のインプット（クリック連動用） */}
+          <div style={dropZoneStyle(isDragOverRegister)} onDragOver={(e) => { e.preventDefault(); setIsDragOverRegister(true); }} onDragLeave={() => setIsDragOverRegister(false)} onDrop={handleDropRegister} onClick={() => document.getElementById('fileInput').click()}>
+            <p style={{ margin: 0, fontSize: '13px', color: '#666' }}>📸 画像を<b>ドラッグ＆ドロップ</b>または<b>クリック選択</b></p>
             <input id="fileInput" type="file" accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} />
           </div>
 
@@ -288,31 +302,63 @@ function App() {
       )}
 
       {activeTab === 'preview' && (
-        <div style={{ marginBottom: '25px', padding: '15px', border: '2px solid #28a745', borderRadius: '8px', backgroundColor: '#f4fbf7', textAlign: 'center' }}>
-          <h3 style={{ marginTop: 0 }}>【コーディネートプレビュー】</h3>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '15px' }}>
-            {/* 各パーツ表示省略なし */}
-            <div style={{ width: '110px', minHeight: '140px', border: '1px dashed #ccc', padding: '5px', backgroundColor: '#fff', fontSize: '11px' }}>
-              <div style={{ fontWeight: 'bold', color: '#666' }}>アウター</div>
-              {selectedOuter ? <img src={selectedOuter.image} alt="Outer" style={{ width: '100%', height: '110px', objectFit: 'cover', marginTop: '5px' }} /> : <p style={{ color: '#999', marginTop: '35px' }}>未選択</p>}
-            </div>
-            <div style={{ width: '110px', minHeight: '140px', border: '1px dashed #ccc', padding: '5px', backgroundColor: '#fff', fontSize: '11px' }}>
-              <div style={{ fontWeight: 'bold', color: '#666' }}>トップス</div>
-              {selectedTop ? <img src={selectedTop.image} alt="Top" style={{ width: '100%', height: '110px', objectFit: 'cover', marginTop: '5px' }} /> : <p style={{ color: '#999', marginTop: '35px' }}>未選択</p>}
-            </div>
-            <div style={{ width: '110px', minHeight: '140px', border: '1px dashed #ccc', padding: '5px', backgroundColor: '#fff', fontSize: '11px' }}>
-              <div style={{ fontWeight: 'bold', color: '#666' }}>ボトムス</div>
-              {selectedBottom ? <img src={selectedBottom.image} alt="Bottom" style={{ width: '100%', height: '110px', objectFit: 'cover', marginTop: '5px' }} /> : <p style={{ color: '#999', marginTop: '35px' }}>未選択</p>}
-            </div>
-            <div style={{ width: '110px', minHeight: '140px', border: '1px dashed #ccc', padding: '5px', backgroundColor: '#fff', fontSize: '11px' }}>
-              <div style={{ fontWeight: 'bold', color: '#666' }}>シューズ</div>
-              {selectedShoes ? <img src={selectedShoes.image} alt="Shoes" style={{ width: '100%', height: '110px', objectFit: 'cover', marginTop: '5px' }} /> : <p style={{ color: '#999', marginTop: '35px' }}>未選択</p>}
-            </div>
+        <div style={{ marginBottom: '25px', padding: '15px', border: '2px solid #28a745', borderRadius: '8px', backgroundColor: '#f4fbf7' }}>
+          <h3 style={{ marginTop: 0, textAlign: 'center' }}>【コーディネートプレビュー】</h3>
+          
+          {/* 🌟 チェックボックスで表示項目を管理 */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center', padding: '8px', backgroundColor: '#fff', borderRadius: '6px', border: '1px solid #ddd', marginBottom: '15px', fontSize: '12px' }}>
+            <span style={{ fontWeight: 'bold', color: '#28a745' }}>合わせる項目：</span>
+            <label><input type="checkbox" checked={visibleSlots.outer} onChange={() => handleCheckboxChange('outer')} /> アウター</label>
+            <label><input type="checkbox" checked={visibleSlots.top} onChange={() => handleCheckboxChange('top')} /> トップス</label>
+            <label><input type="checkbox" checked={visibleSlots.bottom} onChange={() => handleCheckboxChange('bottom')} /> ボトムス</label>
+            <label style={{ color: '#b80000', fontWeight: 'bold' }}><input type="checkbox" checked={visibleSlots.piece} onChange={() => handleCheckboxChange('piece')} /> 👗ワンピース</label>
+            <label><input type="checkbox" checked={visibleSlots.shoes} onChange={() => handleCheckboxChange('shoes')} /> シューズ</label>
+            <label style={{ color: '#8e44ad', fontWeight: 'bold' }}><input type="checkbox" checked={visibleSlots.accessory} onChange={() => handleCheckboxChange('accessory')} /> 💍小物・バッグ</label>
           </div>
-          <p style={{ fontSize: '12px', color: '#555', margin: '5px 0' }}>💡 ここで選んだセットのまま「📸 今日着た服」タブへ行くと、写真とリンクして保存できます！</p>
-          {(selectedOuter || selectedTop || selectedBottom || selectedShoes) && (
-            <button onClick={() => { setSelectedOuter(null); setSelectedTop(null); setSelectedBottom(null); setSelectedShoes(null); }} style={{ padding: '6px 15px', fontSize: '12px' }}>プレビューをリセット</button>
-          )}
+
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '15px' }}>
+            {visibleSlots.outer && (
+              <div style={previewBoxStyle}>
+                <div style={{ fontWeight: 'bold', color: '#666' }}>アウター</div>
+                {selectedOuter ? <img src={selectedOuter.image} alt="Outer" style={{ width: '100%', height: '100px', objectFit: 'cover', marginTop: '5px' }} /> : <p style={{ color: '#999', marginTop: '30px' }}>未選択</p>}
+              </div>
+            )}
+            {visibleSlots.top && (
+              <div style={previewBoxStyle}>
+                <div style={{ fontWeight: 'bold', color: '#666' }}>トップス</div>
+                {selectedTop ? <img src={selectedTop.image} alt="Top" style={{ width: '100%', height: '100px', objectFit: 'cover', marginTop: '5px' }} /> : <p style={{ color: '#999', marginTop: '30px' }}>未選択</p>}
+              </div>
+            )}
+            {visibleSlots.bottom && (
+              <div style={previewBoxStyle}>
+                <div style={{ fontWeight: 'bold', color: '#666' }}>ボトムス</div>
+                {selectedBottom ? <img src={selectedBottom.image} alt="Bottom" style={{ width: '100%', height: '100px', objectFit: 'cover', marginTop: '5px' }} /> : <p style={{ color: '#999', marginTop: '30px' }}>未選択</p>}
+              </div>
+            )}
+            {/* 🌟 ワンピーススロット */}
+            {visibleSlots.piece && (
+              <div style={{ ...previewBoxStyle, borderColor: '#b80000' }}>
+                <div style={{ fontWeight: 'bold', color: '#b80000' }}>ワンピース</div>
+                {selectedPiece ? <img src={selectedPiece.image} alt="Piece" style={{ width: '100%', height: '100px', objectFit: 'cover', marginTop: '5px' }} /> : <p style={{ color: '#999', marginTop: '30px' }}>未選択</p>}
+              </div>
+            )}
+            {visibleSlots.shoes && (
+              <div style={previewBoxStyle}>
+                <div style={{ fontWeight: 'bold', color: '#666' }}>シューズ</div>
+                {selectedShoes ? <img src={selectedShoes.image} alt="Shoes" style={{ width: '100%', height: '100px', objectFit: 'cover', marginTop: '5px' }} /> : <p style={{ color: '#999', marginTop: '30px' }}>未選択</p>}
+              </div>
+            )}
+            {/* 🌟 小物・バッグスロット */}
+            {visibleSlots.accessory && (
+              <div style={{ ...previewBoxStyle, borderColor: '#8e44ad' }}>
+                <div style={{ fontWeight: 'bold', color: '#8e44ad' }}>小物・バッグ</div>
+                {selectedAccessory ? <img src={selectedAccessory.image} alt="Accessory" style={{ width: '100%', height: '100px', objectFit: 'cover', marginTop: '5px' }} /> : <p style={{ color: '#999', marginTop: '30px' }}>未選択</p>}
+              </div>
+            )}
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <button onClick={() => { setSelectedOuter(null); setSelectedTop(null); setSelectedBottom(null); setSelectedPiece(null); setSelectedShoes(null); setSelectedAccessory(null); }} style={{ padding: '6px 15px', fontSize: '12px' }}>プレビューをリセット</button>
+          </div>
         </div>
       )}
 
@@ -324,29 +370,22 @@ function App() {
             <input type="date" value={historyDate} onChange={(e) => setHistoryDate(e.target.value)} style={{ padding: '5px', fontSize: '14px' }} />
           </div>
 
-          {/* 🌟 履歴用のドラッグ＆ドロップエリア */}
-          <div 
-            style={dropZoneStyle(isDragOverHistory)}
-            onDragOver={(e) => { e.preventDefault(); setIsDragOverHistory(true); }}
-            onDragLeave={() => setIsDragOverHistory(false)}
-            onDrop={handleDropHistory}
-            onClick={() => document.getElementById('historyFileInput').click()}
-          >
-            <p style={{ margin: 0, fontSize: '13px', color: '#666' }}>
-              📸 ここに全身着画を<b>ドラッグ＆ドロップ</b><br />または<b>クリックしてファイルを選択</b>
-            </p>
+          <div style={dropZoneStyle(isDragOverHistory)} onDragOver={(e) => { e.preventDefault(); setIsDragOverHistory(true); }} onDragLeave={() => setIsDragOverHistory(false)} onDrop={handleDropHistory} onClick={() => document.getElementById('historyFileInput').click()}>
+            <p style={{ margin: 0, fontSize: '13px', color: '#666' }}>📸 全身着画を<b>ドラッグ＆ドロップ</b>または<b>クリック選択</b></p>
             <input id="historyFileInput" type="file" accept="image/*" onChange={handleHistoryImageChange} style={{ display: 'none' }} />
           </div>
 
           {historyImage && <div style={{ margin: '10px 0', textAlign: 'center' }}><img src={historyImage} alt="全身" style={{ width: '130px', borderRadius: '6px', border: '1px solid #ccc' }} /></div>}
           
           <div style={{ padding: '8px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #f39c12', marginBottom: '15px', fontSize: '12px' }}>
-            <strong style={{ color: '#e67e22' }}>🔗 リンクされるクローゼットアイテム:</strong>
-            <div style={{ display: 'flex', gap: '5px', marginTop: '5px', color: '#666' }}>
-              <span>【アウター: {selectedOuter ? '⭕' : '❌'}】</span>
-              <span>【トップス: {selectedTop ? '⭕' : '❌'}】</span>
-              <span>【ボトムス: {selectedBottom ? '⭕' : '❌'}】</span>
-              <span>【靴: {selectedShoes ? '⭕' : '❌'}】</span>
+            <strong style={{ color: '#e67e22' }}>🔗 表示・リンク中（有効なスロットのみ）:</strong>
+            <div style={{ display: 'flex', gap: '5px', marginTop: '5px', color: '#666', flexWrap: 'wrap' }}>
+              {visibleSlots.outer && <span>【アウター: {selectedOuter ? '⭕' : '❌'}】</span>}
+              {visibleSlots.top && <span>【トップス: {selectedTop ? '⭕' : '❌'}】</span>}
+              {visibleSlots.bottom && <span>【ボトムス: {selectedBottom ? '⭕' : '❌'}】</span>}
+              {visibleSlots.piece && <span>【ワンピ: {selectedPiece ? '⭕' : '❌'}】</span>}
+              {visibleSlots.shoes && <span>【靴: {selectedShoes ? '⭕' : '❌'}】</span>}
+              {visibleSlots.accessory && <span>【小物: {selectedAccessory ? '⭕' : '❌'}】</span>}
             </div>
           </div>
           <div style={{ marginBottom: '15px' }}><input type="text" placeholder="今日の出来事やメモ" value={historyMemo} onChange={(e) => setHistoryMemo(e.target.value)} style={{ width: '95%', padding: '8px', boxSizing: 'border-box' }} /></div>
@@ -356,7 +395,7 @@ function App() {
 
       <hr style={{ margin: '25px 0', border: '0', borderTop: '2px solid #ddd' }} />
 
-      {/* 下半分：服一覧または履歴の切り替え表示ロジック（前ステップを維持） */}
+      {/* ------------------ 下半分のエリア ------------------ */}
       {activeTab !== 'history' ? (
         <div>
           {/* クローゼット検索エリア */}
@@ -385,14 +424,6 @@ function App() {
                     <option value="すべて">すべての季節</option><option value="通年">通年</option><option value="春夏">春夏（夏物）</option><option value="秋冬">秋冬（冬物）</option><option value="指定なし">指定なし</option>
                   </select>
                 </div>
-                {(searchCategory === 'すべて' || searchCategory === 'トップス' || searchCategory === 'ワンピース' || searchCategory === 'ボトムス') && (
-                  <div style={{ marginBottom: '5px' }}>
-                    <label>袖・丈: </label>
-                    <select value={searchSleeve} onChange={(e) => setSearchSleeve(e.target.value)} style={{ padding: '3px' }}>
-                      <option value="すべて">すべての袖・丈</option><option value="長袖">長袖</option><option value="半袖">半袖</option><option value="七分袖">七分袖</option><option value="ノースリーブ">ノースリーブ</option><option value="長ズボン">長ズボン</option><option value="半ズボン">半ズボン</option><option value="七分丈">七分丈</option><option value="スカート">スカート</option>
-                    </select>
-                  </div>
-                )}
               </div>
             )}
             <div><input type="text" placeholder="🔍 メモのキーワードで爆速検索" value={searchWord} onChange={(e) => setSearchWord(e.target.value)} style={{ padding: '8px', width: '95%', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #ccc' }} /></div>
@@ -404,13 +435,16 @@ function App() {
               <div key={item.id} style={{ border: '1px solid #ddd', padding: '10px', borderRadius: '6px', textAlign: 'center', backgroundColor: '#fff' }}>
                 <img src={item.image} alt="服" style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: '4px' }} />
                 <div style={{ fontSize: '12px', fontWeight: 'bold', marginTop: '5px' }}>{item.category} <span>({item.color})</span></div>
-                <div style={{ fontSize: '10px', color: '#e67e22', margin: '2px 0' }}>{item.season}{item.sleeve !== 'なし' && ` / ${item.sleeve}`}</div>
                 <div style={{ fontSize: '11px', color: '#666', minHeight: '32px', margin: '4px 0' }}>{item.memo}</div>
+                
+                {/* 🌟 選択ボタンにワンピースと小物の割り当てを追加 */}
                 <div style={{ marginBottom: '8px' }}>
                   {item.category === 'アウター' && <button onClick={() => setSelectedOuter(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%' }}>アウターに選択</button>}
                   {item.category === 'トップス' && <button onClick={() => setSelectedTop(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%' }}>トップスに選択</button>}
                   {item.category === 'ボトムス' && <button onClick={() => setSelectedBottom(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%' }}>ボトムスに選択</button>}
+                  {item.category === 'ワンピース' && <button onClick={() => setSelectedPiece(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%', color: '#b80000', fontWeight: 'bold' }}>ワンピースに選択</button>}
                   {item.category === 'シューズ' && <button onClick={() => setSelectedShoes(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%' }}>シューズに選択</button>}
+                  {item.category === '小物・バッグ' && <button onClick={() => setSelectedAccessory(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%', color: '#8e44ad' }}>小物・バッグに選択</button>}
                 </div>
                 <button onClick={() => handleDelete(item.id, item.category)} style={{ padding: '2px 8px', fontSize: '11px', color: 'red', border: '1px solid red', borderRadius: '3px', backgroundColor: 'transparent', cursor: 'pointer' }}>削除</button>
               </div>
@@ -422,14 +456,16 @@ function App() {
         <div>
           <h3>【過去の着用履歴 （{historyList.length}件）】</h3>
           {historyList.length === 0 ? (
-            <p style={{ color: '#999', fontSize: '13px' }}>まだ着画の履歴はありません。上のフォームから登録してください！</p>
+            <p style={{ color: '#999', fontSize: '13px' }}>まだ着画の履歴はありません。</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               {historyList.map((hist) => {
                 const linkedOuter = clothesList.find(c => c.id === hist.outerId);
                 const linkedTop = clothesList.find(c => c.id === hist.topId);
                 const linkedBottom = clothesList.find(c => c.id === hist.bottomId);
+                const linkedPiece = clothesList.find(c => c.id === hist.pieceId); // 🌟
                 const linkedShoes = clothesList.find(c => c.id === hist.shoesId);
+                const linkedAccessory = clothesList.find(c => c.id === hist.accessoryId); // 🌟
 
                 return (
                   <div key={hist.id} style={{ display: 'flex', border: '1px solid #e67e22', borderRadius: '8px', padding: '12px', backgroundColor: '#fff' }}>
@@ -443,12 +479,13 @@ function App() {
                         <div style={{ fontSize: '13px', color: '#333', fontWeight: 'bold', marginBottom: '8px' }}>💬 {hist.memo}</div>
                         <div style={{ marginTop: '5px' }}>
                           <div style={{ fontSize: '11px', color: '#e67e22', fontWeight: 'bold', marginBottom: '3px' }}>🔗 着用アイテムリンク:</div>
-                          <div style={{ display: 'flex', gap: '6px' }}>
-                            {linkedOuter && <img src={linkedOuter.image} title={`アウター: ${linkedOuter.memo}`} style={{ width: '35px', height: '35px', objectFit: 'cover', border: '1px solid #ccc', borderRadius: '3px' }} />}
-                            {linkedTop && <img src={linkedTop.image} title={`トップス: ${linkedTop.memo}`} style={{ width: '35px', height: '35px', objectFit: 'cover', border: '1px solid #ccc', borderRadius: '3px' }} />}
-                            {linkedBottom && <img src={linkedBottom.image} title={`ボトムス: ${linkedBottom.memo}`} style={{ width: '35px', height: '35px', objectFit: 'cover', border: '1px solid #ccc', borderRadius: '3px' }} />}
-                            {linkedShoes && <img src={linkedShoes.image} title={`シューズ: ${linkedShoes.memo}`} style={{ width: '35px', height: '35px', objectFit: 'cover', border: '1px solid #ccc', borderRadius: '3px' }} />}
-                            {!linkedOuter && !linkedTop && !linkedBottom && !linkedShoes && <span style={{ fontSize: '11px', color: '#999' }}>リンク服なし</span>}
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            {linkedOuter && <img src={linkedOuter.image} title="アウター" style={{ width: '35px', height: '35px', objectFit: 'cover', border: '1px solid #ccc', borderRadius: '3px' }} />}
+                            {linkedTop && <img src={linkedTop.image} title="トップス" style={{ width: '35px', height: '35px', objectFit: 'cover', border: '1px solid #ccc', borderRadius: '3px' }} />}
+                            {linkedBottom && <img src={linkedBottom.image} title="ボトムス" style={{ width: '35px', height: '35px', objectFit: 'cover', border: '1px solid #ccc', borderRadius: '3px' }} />}
+                            {linkedPiece && <img src={linkedPiece.image} title="ワンピース" style={{ width: '35px', height: '35px', objectFit: 'cover', border: '1px solid #b80000', borderRadius: '3px' }} />}
+                            {linkedShoes && <img src={linkedShoes.image} title="シューズ" style={{ width: '35px', height: '35px', objectFit: 'cover', border: '1px solid #ccc', borderRadius: '3px' }} />}
+                            {linkedAccessory && <img src={linkedAccessory.image} title="小物・バッグ" style={{ width: '35px', height: '35px', objectFit: 'cover', border: '1px solid #8e44ad', borderRadius: '3px' }} />}
                           </div>
                         </div>
                       </div>
