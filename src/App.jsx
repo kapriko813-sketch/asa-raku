@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Dexie from 'dexie';
 
-// データベースの定義（ワンピースと小物・バッグのリンク用IDを追加）
+// データベースの定義
 const db = new Dexie('asaRakuDatabase_v14');
 db.version(1).stores({
   clothes: '++id, category, memo, image, color, season, sleeve',
@@ -19,7 +19,7 @@ function App() {
   const [isDragOverRegister, setIsDragOverRegister] = useState(false);
   const [isDragOverHistory, setIsDragOverHistory] = useState(false);
 
-  // --- 🌟 組み合わせ表示切り替え用のチェックボックス状態 ---
+  // --- 組み合わせ表示切り替え用のチェックボックス状態 ---
   const [visibleSlots, setVisibleSlots] = useState({
     outer: true,
     top: true,
@@ -29,7 +29,10 @@ function App() {
     accessory: true 
   });
 
-  // --- ① 服の登録用の状態 ---
+  // --- 🌟 追加：編集中の服のID（null の時は新規登録モード） ---
+  const [editingId, setEditingId] = useState(null);
+
+  // --- ① 服の登録・編集用の状態 ---
   const [category, setCategory] = useState('トップス');
   const [memo, setMemo] = useState('');
   const [color, setColor] = useState('白');
@@ -43,7 +46,6 @@ function App() {
   const [searchSeason, setSearchSeason] = useState('すべて'); 
   const [searchSleeve, setSearchSleeve] = useState('すべて'); 
   const [searchWord, setSearchWord] = useState('');
-  // 🌟 追加：並び替え用の状態（要件: 色ごとに並び替えができる）
   const [sortOrder, setSortOrder] = useState('newest');
 
   // --- ③ コーディネートプレビューの状態 ---
@@ -137,18 +139,56 @@ function App() {
     if (file && file.type.startsWith('image/')) resizeImage(file, setHistoryImage);
   };
 
-  const handleAdd = async (e) => {
+  // 🌟 修正：新規登録と編集（更新）を兼用する関数
+  const handleSaveClothes = async (e) => {
     e.preventDefault();
     if (!imageSrc) return alert('洋服の画像を選択またはドラッグしてください');
 
-    await db.clothes.add({
-      category, memo: memo || 'メモなし', image: imageSrc, color, season, sleeve  
-    });
+    if (editingId) {
+      // 【編集モード】データを更新
+      await db.clothes.update(editingId, {
+        category, memo: memo || 'メモなし', image: imageSrc, color, season, sleeve  
+      });
+      alert('クローゼットの情報を更新しました！');
+      setEditingId(null); // 編集モードを終了
+    } else {
+      // 【新規登録モード】新しく追加
+      await db.clothes.add({
+        category, memo: memo || 'メモなし', image: imageSrc, color, season, sleeve  
+      });
+      alert('クローゼットに登録しました！');
+    }
 
+    // フォームをリセット
     setMemo('');
     setImageSrc(null);
-    alert('クローゼットに登録しました！');
     refreshClothes();
+  };
+
+  // 🌟 追加：編集モードを開始する処理
+  const handleEditStart = (item) => {
+    setEditingId(item.id);
+    setCategory(item.category);
+    setMemo(item.memo === 'メモなし' ? '' : item.memo);
+    setColor(item.color);
+    setSeason(item.season);
+    setSleeve(item.sleeve);
+    setImageSrc(item.image);
+    
+    // フォームのあるタブに移動し、画面トップにスムーズスクロール
+    setActiveTab('register');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // 🌟 追加：編集をキャンセルして新規登録に戻る処理
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setCategory('トップス');
+    setMemo('');
+    setColor('白');
+    setSeason('通年');
+    setSleeve('長袖');
+    setImageSrc(null);
   };
 
   const handleAddHistory = async (e) => {
@@ -184,6 +224,9 @@ function App() {
     if (selectedShoes?.id === id) setSelectedShoes(null);
     if (selectedAccessory?.id === id) setSelectedAccessory(null);
     
+    // もし編集中のデータを削除した場合は編集モードを抜ける
+    if (editingId === id) handleCancelEdit();
+
     await db.clothes.delete(id);
     refreshClothes();
   };
@@ -195,7 +238,6 @@ function App() {
     refreshHistory();
   };
 
-  // 🌟 修正：フィルタリング後に並び替え（ソート）を実行
   const filteredClothes = clothesList.filter((item) => {
     const matchCategory = searchCategory === 'すべて' || item.category === searchCategory;
     const matchColor = searchColor === 'すべて' || item.color === searchColor; 
@@ -204,11 +246,9 @@ function App() {
     const matchWord = item.memo.toLowerCase().includes(searchWord.toLowerCase());
     return matchCategory && matchColor && matchSeason && matchSleeve && matchWord;
   }).sort((a, b) => {
-    // 色順でソート
     if (sortOrder === 'color') {
       return a.color.localeCompare(b.color, 'ja');
     }
-    // デフォルト（登録順＝新しいものを上にしたい場合はIDの降順）
     return b.id - a.id; 
   });
 
@@ -255,14 +295,19 @@ function App() {
       <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>朝ラクローゼット</h2>
 
       <div style={{ display: 'flex', borderRadius: '8px', overflow: 'hidden', marginBottom: '20px', border: '1px solid #ccc' }}>
-        <button onClick={() => setActiveTab('register')} style={tabStyle('register')}>服を登録</button>
+        <button onClick={() => setActiveTab('register')} style={tabStyle('register')}>
+          {editingId ? '✏️ 服を編集' : '服を登録'}
+        </button>
         <button onClick={() => setActiveTab('preview')} style={tabStyle('preview')}>組み合わせ</button>
         <button onClick={() => setActiveTab('history')} style={tabStyle('history')}>📸 今日着た服</button>
       </div>
 
       {activeTab === 'register' && (
-        <form onSubmit={handleAdd} style={{ marginBottom: '25px', padding: '15px', border: '1px solid #ccc', borderRadius: '8px', backgroundColor: '#fdfdfd' }}>
-          <h3 style={{ marginTop: 0 }}>【洋服登録】</h3>
+        <form onSubmit={handleSaveClothes} style={{ marginBottom: '25px', padding: '15px', border: editingId ? '2px solid #007bff' : '1px solid #ccc', borderRadius: '8px', backgroundColor: editingId ? '#f0f7ff' : '#fdfdfd' }}>
+          {/* 🌟 編集モードと登録モードでタイトルを切り替え */}
+          <h3 style={{ marginTop: 0, color: editingId ? '#007bff' : '#333' }}>
+            {editingId ? '【洋服の編集】' : '【洋服登録】'}
+          </h3>
           
           <div style={dropZoneStyle(isDragOverRegister)} onDragOver={(e) => { e.preventDefault(); setIsDragOverRegister(true); }} onDragLeave={() => setIsDragOverRegister(false)} onDrop={handleDropRegister} onClick={() => document.getElementById('fileInput').click()}>
             <p style={{ margin: 0, fontSize: '13px', color: '#666' }}>📸 画像を<b>ドラッグ＆ドロップ</b>または<b>クリック選択</b></p>
@@ -303,7 +348,18 @@ function App() {
             )}
           </div>
           <div style={{ marginBottom: '15px' }}><input type="text" placeholder="服被り防止メモ（例: 山田さんランチ）" value={memo} onChange={(e) => setMemo(e.target.value)} style={{ width: '95%', padding: '8px', boxSizing: 'border-box' }} /></div>
-          <button type="submit" style={{ width: '100%', padding: '10px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold' }}>クローゼットに登録する</button>
+          
+          {/* 🌟 編集モードの時は「保存」と「キャンセル」ボタンを表示 */}
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button type="submit" style={{ flex: 2, padding: '10px', backgroundColor: editingId ? '#007bff' : '#007bff', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}>
+              {editingId ? '変更を保存する' : 'クローゼットに登録する'}
+            </button>
+            {editingId && (
+              <button type="button" onClick={handleCancelEdit} style={{ flex: 1, padding: '10px', backgroundColor: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}>
+                キャンセル
+              </button>
+            )}
+          </div>
         </form>
       )}
 
@@ -428,7 +484,6 @@ function App() {
               </div>
             )}
             
-            {/* 🌟 修正：検索キーワード入力欄の隣に「並び替え」ドロップダウンを配置 */}
             <div style={{ display: 'flex', gap: '10px' }}>
               <input type="text" placeholder="🔍 メモのキーワードで爆速検索" value={searchWord} onChange={(e) => setSearchWord(e.target.value)} style={{ padding: '8px', flex: 1, boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #ccc' }} />
               <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', cursor: 'pointer' }}>
@@ -436,13 +491,12 @@ function App() {
                 <option value="color">色順で並べる</option>
               </select>
             </div>
-            
           </div>
 
           <h3>【該当データ一覧 （{filteredClothes.length}件）】</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '15px' }}>
             {filteredClothes.map((item) => (
-              <div key={item.id} style={{ border: '1px solid #ddd', padding: '10px', borderRadius: '6px', textAlign: 'center', backgroundColor: '#fff' }}>
+              <div key={item.id} style={{ border: item.id === editingId ? '2px solid #007bff' : '1px solid #ddd', padding: '10px', borderRadius: '6px', textAlign: 'center', backgroundColor: item.id === editingId ? '#f0f7ff' : '#fff' }}>
                 <img src={item.image} alt="服" style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: '4px' }} />
                 <div style={{ fontSize: '12px', fontWeight: 'bold', marginTop: '5px' }}>{item.category} <span>({item.color})</span></div>
                 <div style={{ fontSize: '11px', color: '#666', minHeight: '32px', margin: '4px 0' }}>{item.memo}</div>
@@ -455,7 +509,12 @@ function App() {
                   {item.category === 'シューズ' && <button onClick={() => setSelectedShoes(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%' }}>シューズに選択</button>}
                   {item.category === '小物・バッグ' && <button onClick={() => setSelectedAccessory(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%', color: '#8e44ad' }}>小物・バッグに選択</button>}
                 </div>
-                <button onClick={() => handleDelete(item.id, item.category)} style={{ padding: '2px 8px', fontSize: '11px', color: 'red', border: '1px solid red', borderRadius: '3px', backgroundColor: 'transparent', cursor: 'pointer' }}>削除</button>
+                
+                {/* 🌟 修正：「編集」ボタンを追加し、「削除」と横並びに配置 */}
+                <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
+                  <button onClick={() => handleEditStart(item)} style={{ flex: 1, padding: '4px 0', fontSize: '11px', color: '#007bff', border: '1px solid #007bff', borderRadius: '3px', backgroundColor: 'transparent', cursor: 'pointer' }}>編集</button>
+                  <button onClick={() => handleDelete(item.id, item.category)} style={{ flex: 1, padding: '4px 0', fontSize: '11px', color: 'red', border: '1px solid red', borderRadius: '3px', backgroundColor: 'transparent', cursor: 'pointer' }}>削除</button>
+                </div>
               </div>
             ))}
           </div>
