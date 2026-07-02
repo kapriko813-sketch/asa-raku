@@ -5,7 +5,7 @@ import Dexie from 'dexie';
 const db = new Dexie('asaRakuDatabase_v14');
 db.version(1).stores({
   clothes: '++id, category, memo, image, color, season, sleeve',
-  history: '++id, date, image, memo, outerId, topId, bottomId, shoesId, pieceId, accessoryId' // 🌟 カラム拡張
+  history: '++id, date, image, memo, outerId, topId, bottomId, shoesId, pieceId, accessoryId'
 });
 
 function App() {
@@ -24,9 +24,9 @@ function App() {
     outer: true,
     top: true,
     bottom: true,
-    piece: false, // 初期はオフ（必要な時にチェック）
+    piece: false,
     shoes: true,
-    accessory: true // 🌟 小物・バッグを標準で追加！
+    accessory: true 
   });
 
   // --- ① 服の登録用の状態 ---
@@ -43,14 +43,16 @@ function App() {
   const [searchSeason, setSearchSeason] = useState('すべて'); 
   const [searchSleeve, setSearchSleeve] = useState('すべて'); 
   const [searchWord, setSearchWord] = useState('');
+  // 🌟 追加：並び替え用の状態（要件: 色ごとに並び替えができる）
+  const [sortOrder, setSortOrder] = useState('newest');
 
-  // --- ③ コーディネートプレビューの状態（ワンピース・小物・バッグを追加） ---
+  // --- ③ コーディネートプレビューの状態 ---
   const [selectedOuter, setSelectedOuter] = useState(null);
   const [selectedTop, setSelectedTop] = useState(null);
   const [selectedBottom, setSelectedBottom] = useState(null);
-  const [selectedPiece, setSelectedPiece] = useState(null); // 🌟 ワンピース
+  const [selectedPiece, setSelectedPiece] = useState(null);
   const [selectedShoes, setSelectedShoes] = useState(null);
-  const [selectedAccessory, setSelectedAccessory] = useState(null); // 🌟 小物・バッグ
+  const [selectedAccessory, setSelectedAccessory] = useState(null);
 
   // --- ④ 「今日着た服」タブ用の状態 ---
   const [historyDate, setHistoryDate] = useState(new Date().toISOString().split('T')[0]);
@@ -89,7 +91,6 @@ function App() {
     }
   };
 
-  // 画像リサイズ共通ロジック
   const resizeImage = (file, callback) => {
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -154,7 +155,6 @@ function App() {
     e.preventDefault();
     if (!historyImage) return alert('全身の着用写真を選択またはドラッグしてください');
 
-    // 表示（有効）になっているスロットのデータのみを保存
     await db.history.add({
       date: historyDate,
       image: historyImage,
@@ -162,9 +162,9 @@ function App() {
       outerId: visibleSlots.outer ? (selectedOuter?.id || null) : null,
       topId: visibleSlots.top ? (selectedTop?.id || null) : null,
       bottomId: visibleSlots.bottom ? (selectedBottom?.id || null) : null,
-      pieceId: visibleSlots.piece ? (selectedPiece?.id || null) : null, // 🌟
+      pieceId: visibleSlots.piece ? (selectedPiece?.id || null) : null,
       shoesId: visibleSlots.shoes ? (selectedShoes?.id || null) : null,
-      accessoryId: visibleSlots.accessory ? (selectedAccessory?.id || null) : null // 🌟
+      accessoryId: visibleSlots.accessory ? (selectedAccessory?.id || null) : null
     });
 
     setHistoryMemo('');
@@ -195,6 +195,7 @@ function App() {
     refreshHistory();
   };
 
+  // 🌟 修正：フィルタリング後に並び替え（ソート）を実行
   const filteredClothes = clothesList.filter((item) => {
     const matchCategory = searchCategory === 'すべて' || item.category === searchCategory;
     const matchColor = searchColor === 'すべて' || item.color === searchColor; 
@@ -202,6 +203,13 @@ function App() {
     const matchSleeve = searchSleeve === 'すべて' || item.sleeve === searchSleeve;
     const matchWord = item.memo.toLowerCase().includes(searchWord.toLowerCase());
     return matchCategory && matchColor && matchSeason && matchSleeve && matchWord;
+  }).sort((a, b) => {
+    // 色順でソート
+    if (sortOrder === 'color') {
+      return a.color.localeCompare(b.color, 'ja');
+    }
+    // デフォルト（登録順＝新しいものを上にしたい場合はIDの降順）
+    return b.id - a.id; 
   });
 
   const tabStyle = (tabName) => ({
@@ -238,7 +246,6 @@ function App() {
     textAlign: 'center'
   };
 
-  // チェックボックス切り替え用
   const handleCheckboxChange = (slot) => {
     setVisibleSlots(prev => ({ ...prev, [slot]: !prev[slot] }));
   };
@@ -253,7 +260,6 @@ function App() {
         <button onClick={() => setActiveTab('history')} style={tabStyle('history')}>📸 今日着た服</button>
       </div>
 
-      {/* ------------------ 上半分のエリア切り替え ------------------ */}
       {activeTab === 'register' && (
         <form onSubmit={handleAdd} style={{ marginBottom: '25px', padding: '15px', border: '1px solid #ccc', borderRadius: '8px', backgroundColor: '#fdfdfd' }}>
           <h3 style={{ marginTop: 0 }}>【洋服登録】</h3>
@@ -305,7 +311,6 @@ function App() {
         <div style={{ marginBottom: '25px', padding: '15px', border: '2px solid #28a745', borderRadius: '8px', backgroundColor: '#f4fbf7' }}>
           <h3 style={{ marginTop: 0, textAlign: 'center' }}>【コーディネートプレビュー】</h3>
           
-          {/* 🌟 チェックボックスで表示項目を管理 */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center', padding: '8px', backgroundColor: '#fff', borderRadius: '6px', border: '1px solid #ddd', marginBottom: '15px', fontSize: '12px' }}>
             <span style={{ fontWeight: 'bold', color: '#28a745' }}>合わせる項目：</span>
             <label><input type="checkbox" checked={visibleSlots.outer} onChange={() => handleCheckboxChange('outer')} /> アウター</label>
@@ -335,7 +340,6 @@ function App() {
                 {selectedBottom ? <img src={selectedBottom.image} alt="Bottom" style={{ width: '100%', height: '100px', objectFit: 'cover', marginTop: '5px' }} /> : <p style={{ color: '#999', marginTop: '30px' }}>未選択</p>}
               </div>
             )}
-            {/* 🌟 ワンピーススロット */}
             {visibleSlots.piece && (
               <div style={{ ...previewBoxStyle, borderColor: '#b80000' }}>
                 <div style={{ fontWeight: 'bold', color: '#b80000' }}>ワンピース</div>
@@ -348,7 +352,6 @@ function App() {
                 {selectedShoes ? <img src={selectedShoes.image} alt="Shoes" style={{ width: '100%', height: '100px', objectFit: 'cover', marginTop: '5px' }} /> : <p style={{ color: '#999', marginTop: '30px' }}>未選択</p>}
               </div>
             )}
-            {/* 🌟 小物・バッグスロット */}
             {visibleSlots.accessory && (
               <div style={{ ...previewBoxStyle, borderColor: '#8e44ad' }}>
                 <div style={{ fontWeight: 'bold', color: '#8e44ad' }}>小物・バッグ</div>
@@ -395,10 +398,8 @@ function App() {
 
       <hr style={{ margin: '25px 0', border: '0', borderTop: '2px solid #ddd' }} />
 
-      {/* ------------------ 下半分のエリア ------------------ */}
       {activeTab !== 'history' ? (
         <div>
-          {/* クローゼット検索エリア */}
           <div style={{ marginBottom: '20px', padding: '15px', border: '1px solid #333', borderRadius: '8px', backgroundColor: '#f9f9f9' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
               <h3 style={{ margin: 0, fontSize: '16px' }}>【クローゼット検索】</h3>
@@ -426,7 +427,16 @@ function App() {
                 </div>
               </div>
             )}
-            <div><input type="text" placeholder="🔍 メモのキーワードで爆速検索" value={searchWord} onChange={(e) => setSearchWord(e.target.value)} style={{ padding: '8px', width: '95%', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #ccc' }} /></div>
+            
+            {/* 🌟 修正：検索キーワード入力欄の隣に「並び替え」ドロップダウンを配置 */}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <input type="text" placeholder="🔍 メモのキーワードで爆速検索" value={searchWord} onChange={(e) => setSearchWord(e.target.value)} style={{ padding: '8px', flex: 1, boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #ccc' }} />
+              <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', cursor: 'pointer' }}>
+                <option value="newest">登録が新しい順</option>
+                <option value="color">色順で並べる</option>
+              </select>
+            </div>
+            
           </div>
 
           <h3>【該当データ一覧 （{filteredClothes.length}件）】</h3>
@@ -437,7 +447,6 @@ function App() {
                 <div style={{ fontSize: '12px', fontWeight: 'bold', marginTop: '5px' }}>{item.category} <span>({item.color})</span></div>
                 <div style={{ fontSize: '11px', color: '#666', minHeight: '32px', margin: '4px 0' }}>{item.memo}</div>
                 
-                {/* 🌟 選択ボタンにワンピースと小物の割り当てを追加 */}
                 <div style={{ marginBottom: '8px' }}>
                   {item.category === 'アウター' && <button onClick={() => setSelectedOuter(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%' }}>アウターに選択</button>}
                   {item.category === 'トップス' && <button onClick={() => setSelectedTop(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%' }}>トップスに選択</button>}
@@ -452,7 +461,6 @@ function App() {
           </div>
         </div>
       ) : (
-        /* 履歴一覧表示部分 */
         <div>
           <h3>【過去の着用履歴 （{historyList.length}件）】</h3>
           {historyList.length === 0 ? (
@@ -463,9 +471,9 @@ function App() {
                 const linkedOuter = clothesList.find(c => c.id === hist.outerId);
                 const linkedTop = clothesList.find(c => c.id === hist.topId);
                 const linkedBottom = clothesList.find(c => c.id === hist.bottomId);
-                const linkedPiece = clothesList.find(c => c.id === hist.pieceId); // 🌟
+                const linkedPiece = clothesList.find(c => c.id === hist.pieceId);
                 const linkedShoes = clothesList.find(c => c.id === hist.shoesId);
-                const linkedAccessory = clothesList.find(c => c.id === hist.accessoryId); // 🌟
+                const linkedAccessory = clothesList.find(c => c.id === hist.accessoryId);
 
                 return (
                   <div key={hist.id} style={{ display: 'flex', border: '1px solid #e67e22', borderRadius: '8px', padding: '12px', backgroundColor: '#fff' }}>
