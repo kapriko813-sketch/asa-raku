@@ -8,6 +8,9 @@ db.version(1).stores({
   history: '++id, date, image, memo, outerId, topId, bottomId, shoesId, pieceId, accessoryId'
 });
 
+// 基本の色リスト
+const defaultColors = ['白', '黒', '青', '赤', 'ベージュ', 'グレー'];
+
 function App() {
   // --- タブ管理用の状態 ---
   const [activeTab, setActiveTab] = useState('register');
@@ -29,8 +32,15 @@ function App() {
     accessory: true 
   });
 
-  // --- 🌟 追加：編集中の服のID（null の時は新規登録モード） ---
+  // --- 編集中の服のID（null の時は新規登録モード） ---
   const [editingId, setEditingId] = useState(null);
+
+  // --- 🌟 追加：ユーザーが追加したカスタムカラーの読み込み ---
+  const [savedCustomColors, setSavedCustomColors] = useState(() => {
+    const saved = localStorage.getItem('customColors');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [customColorInput, setCustomColorInput] = useState('');
 
   // --- ① 服の登録・編集用の状態 ---
   const [category, setCategory] = useState('トップス');
@@ -139,53 +149,69 @@ function App() {
     if (file && file.type.startsWith('image/')) resizeImage(file, setHistoryImage);
   };
 
-  // 🌟 修正：新規登録と編集（更新）を兼用する関数
   const handleSaveClothes = async (e) => {
     e.preventDefault();
     if (!imageSrc) return alert('洋服の画像を選択またはドラッグしてください');
 
+    // 🌟 カスタムカラーの保存処理
+    let finalColor = color;
+    if (color === 'その他' && customColorInput.trim() !== '') {
+      finalColor = customColorInput.trim();
+      // まだ登録されていない新しい色なら localStorage に保存
+      if (!savedCustomColors.includes(finalColor)) {
+        const newColors = [...savedCustomColors, finalColor];
+        setSavedCustomColors(newColors);
+        localStorage.setItem('customColors', JSON.stringify(newColors));
+      }
+    }
+
     if (editingId) {
-      // 【編集モード】データを更新
       await db.clothes.update(editingId, {
-        category, memo: memo || 'メモなし', image: imageSrc, color, season, sleeve  
+        category, memo: memo || 'メモなし', image: imageSrc, color: finalColor, season, sleeve  
       });
       alert('クローゼットの情報を更新しました！');
-      setEditingId(null); // 編集モードを終了
+      setEditingId(null);
     } else {
-      // 【新規登録モード】新しく追加
       await db.clothes.add({
-        category, memo: memo || 'メモなし', image: imageSrc, color, season, sleeve  
+        category, memo: memo || 'メモなし', image: imageSrc, color: finalColor, season, sleeve  
       });
       alert('クローゼットに登録しました！');
     }
 
-    // フォームをリセット
     setMemo('');
     setImageSrc(null);
+    setColor('白');
+    setCustomColorInput('');
     refreshClothes();
   };
 
-  // 🌟 追加：編集モードを開始する処理
   const handleEditStart = (item) => {
     setEditingId(item.id);
     setCategory(item.category);
     setMemo(item.memo === 'メモなし' ? '' : item.memo);
-    setColor(item.color);
     setSeason(item.season);
     setSleeve(item.sleeve);
     setImageSrc(item.image);
     
-    // フォームのあるタブに移動し、画面トップにスムーズスクロール
+    // 🌟 カスタムカラーだった場合の復元処理
+    if (!defaultColors.includes(item.color) && !savedCustomColors.includes(item.color) && item.color !== 'その他') {
+      setColor('その他');
+      setCustomColorInput(item.color);
+    } else {
+      setColor(item.color);
+      setCustomColorInput('');
+    }
+    
     setActiveTab('register');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // 🌟 追加：編集をキャンセルして新規登録に戻る処理
   const handleCancelEdit = () => {
     setEditingId(null);
     setCategory('トップス');
     setMemo('');
     setColor('白');
+    setCustomColorInput('');
     setSeason('通年');
     setSleeve('長袖');
     setImageSrc(null);
@@ -224,18 +250,10 @@ function App() {
     if (selectedShoes?.id === id) setSelectedShoes(null);
     if (selectedAccessory?.id === id) setSelectedAccessory(null);
     
-    // もし編集中のデータを削除した場合は編集モードを抜ける
     if (editingId === id) handleCancelEdit();
 
     await db.clothes.delete(id);
     refreshClothes();
-  };
-
-  const handleDeleteHistory = async (id, date) => {
-    const isConfirmed = window.confirm(`${date} の着用記録を削除しますか？`);
-    if (!isConfirmed) return;
-    await db.history.delete(id);
-    refreshHistory();
   };
 
   const filteredClothes = clothesList.filter((item) => {
@@ -290,6 +308,20 @@ function App() {
     setVisibleSlots(prev => ({ ...prev, [slot]: !prev[slot] }));
   };
 
+  // 🌟 追加：ボタン用のスタイル生成関数（選択されているか等で色を変える）
+  const getSelectButtonStyle = (isSelected, defaultColor = '#fff', activeColor = '#28a745') => ({
+    fontSize: '11px', 
+    padding: '6px 5px', 
+    width: '100%', 
+    fontWeight: isSelected ? 'bold' : 'normal',
+    color: isSelected ? '#fff' : '#333', 
+    backgroundColor: isSelected ? activeColor : defaultColor,
+    border: `1px solid ${isSelected ? activeColor : '#ccc'}`,
+    borderRadius: '4px',
+    cursor: 'pointer',
+    transition: '0.2s'
+  });
+
   return (
     <div translate="no" style={{ padding: '15px', fontFamily: 'sans-serif', maxWidth: '600px', margin: '0 auto' }}>
       <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>朝ラクローゼット</h2>
@@ -304,7 +336,6 @@ function App() {
 
       {activeTab === 'register' && (
         <form onSubmit={handleSaveClothes} style={{ marginBottom: '25px', padding: '15px', border: editingId ? '2px solid #007bff' : '1px solid #ccc', borderRadius: '8px', backgroundColor: editingId ? '#f0f7ff' : '#fdfdfd' }}>
-          {/* 🌟 編集モードと登録モードでタイトルを切り替え */}
           <h3 style={{ marginTop: 0, color: editingId ? '#007bff' : '#333' }}>
             {editingId ? '【洋服の編集】' : '【洋服登録】'}
           </h3>
@@ -321,10 +352,25 @@ function App() {
             <select value={category} onChange={handleCategoryChange} style={{ padding: '5px' }}>
               <option value="トップス">トップス</option><option value="ボトムス">ボトムス</option><option value="ワンピース">ワンピース</option><option value="アウター">アウター</option><option value="シューズ">シューズ</option><option value="小物・バッグ">小物・バッグ</option>
             </select>
+            
             <label style={{ marginLeft: '15px' }}>色: </label>
             <select value={color} onChange={(e) => setColor(e.target.value)} style={{ padding: '5px' }}>
-              <option value="白">白</option><option value="黒">黒</option><option value="青">青</option><option value="赤">赤</option><option value="ベージュ">ベージュ</option><option value="グレー">グレー</option><option value="その他">その他</option>
+              {defaultColors.map(c => <option key={c} value={c}>{c}</option>)}
+              {/* 保存されたカスタムカラーを展開 */}
+              {savedCustomColors.map(c => <option key={c} value={c}>{c}</option>)}
+              <option value="その他">その他（自由入力）</option>
             </select>
+            
+            {/* 🌟 その他が選ばれた時に出現する自由入力フィールド */}
+            {color === 'その他' && (
+              <input 
+                type="text" 
+                placeholder="新しい色を入力" 
+                value={customColorInput} 
+                onChange={(e) => setCustomColorInput(e.target.value)} 
+                style={{ marginLeft: '10px', padding: '5px', width: '100px', border: '1px solid #007bff', borderRadius: '3px' }} 
+              />
+            )}
           </div>
           <div style={{ marginBottom: '15px' }}>
             <label>季節: </label>
@@ -349,7 +395,6 @@ function App() {
           </div>
           <div style={{ marginBottom: '15px' }}><input type="text" placeholder="服被り防止メモ（例: 山田さんランチ）" value={memo} onChange={(e) => setMemo(e.target.value)} style={{ width: '95%', padding: '8px', boxSizing: 'border-box' }} /></div>
           
-          {/* 🌟 編集モードの時は「保存」と「キャンセル」ボタンを表示 */}
           <div style={{ display: 'flex', gap: '10px' }}>
             <button type="submit" style={{ flex: 2, padding: '10px', backgroundColor: editingId ? '#007bff' : '#007bff', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}>
               {editingId ? '変更を保存する' : 'クローゼットに登録する'}
@@ -470,9 +515,12 @@ function App() {
                   <select value={searchCategory} onChange={(e) => setSearchCategory(e.target.value)} style={{ padding: '3px' }}>
                     <option value="すべて">すべてのカテゴリ</option><option value="トップス">トップス</option><option value="ボトムス">ボトムス</option><option value="ワンピース">ワンピース</option><option value="アウター">アウター</option><option value="シューズ">シューズ</option><option value="小物・バッグ">小物・バッグ</option>
                   </select>
+                  
                   <label style={{ marginLeft: '10px' }}>色: </label>
                   <select value={searchColor} onChange={(e) => setSearchColor(e.target.value)} style={{ padding: '3px' }}>
-                    <option value="すべて">すべての色</option><option value="白">白</option><option value="黒">黒</option><option value="青">青</option><option value="赤">赤</option><option value="ベージュ">ベージュ</option><option value="グレー">グレー</option><option value="その他">その他</option>
+                    <option value="すべて">すべての色</option>
+                    {defaultColors.map(c => <option key={c} value={c}>{c}</option>)}
+                    {savedCustomColors.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 <div style={{ marginBottom: '10px' }}>
@@ -495,28 +543,50 @@ function App() {
 
           <h3>【該当データ一覧 （{filteredClothes.length}件）】</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '15px' }}>
-            {filteredClothes.map((item) => (
-              <div key={item.id} style={{ border: item.id === editingId ? '2px solid #007bff' : '1px solid #ddd', padding: '10px', borderRadius: '6px', textAlign: 'center', backgroundColor: item.id === editingId ? '#f0f7ff' : '#fff' }}>
-                <img src={item.image} alt="服" style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: '4px' }} />
-                <div style={{ fontSize: '12px', fontWeight: 'bold', marginTop: '5px' }}>{item.category} <span>({item.color})</span></div>
-                <div style={{ fontSize: '11px', color: '#666', minHeight: '32px', margin: '4px 0' }}>{item.memo}</div>
+            {filteredClothes.map((item) => {
+              // 🌟 選択中かどうかの判定処理を追加
+              const isSelected = 
+                item.id === selectedOuter?.id || 
+                item.id === selectedTop?.id || 
+                item.id === selectedBottom?.id || 
+                item.id === selectedPiece?.id || 
+                item.id === selectedShoes?.id || 
+                item.id === selectedAccessory?.id;
                 
-                <div style={{ marginBottom: '8px' }}>
-                  {item.category === 'アウター' && <button onClick={() => setSelectedOuter(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%' }}>アウターに選択</button>}
-                  {item.category === 'トップス' && <button onClick={() => setSelectedTop(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%' }}>トップスに選択</button>}
-                  {item.category === 'ボトムス' && <button onClick={() => setSelectedBottom(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%' }}>ボトムスに選択</button>}
-                  {item.category === 'ワンピース' && <button onClick={() => setSelectedPiece(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%', color: '#b80000', fontWeight: 'bold' }}>ワンピースに選択</button>}
-                  {item.category === 'シューズ' && <button onClick={() => setSelectedShoes(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%' }}>シューズに選択</button>}
-                  {item.category === '小物・バッグ' && <button onClick={() => setSelectedAccessory(item)} style={{ fontSize: '11px', padding: '4px 5px', width: '100%', color: '#8e44ad' }}>小物・バッグに選択</button>}
+              const borderStyle = isSelected ? '3px solid #28a745' : (item.id === editingId ? '2px solid #007bff' : '1px solid #ddd');
+              const bgColor = isSelected ? '#f2fff2' : (item.id === editingId ? '#f0f7ff' : '#fff');
+
+              return (
+                <div key={item.id} style={{ border: borderStyle, padding: '10px', borderRadius: '6px', textAlign: 'center', backgroundColor: bgColor, position: 'relative' }}>
+                  
+                  {/* 🌟 選択中のバッジ表示 */}
+                  {isSelected && (
+                    <div style={{ position: 'absolute', top: '-10px', left: '-10px', backgroundColor: '#28a745', color: '#fff', padding: '4px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
+                      ✓ 選択中
+                    </div>
+                  )}
+
+                  <img src={item.image} alt="服" style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: '4px' }} />
+                  <div style={{ fontSize: '12px', fontWeight: 'bold', marginTop: '5px' }}>{item.category} <span>({item.color})</span></div>
+                  <div style={{ fontSize: '11px', color: '#666', minHeight: '32px', margin: '4px 0' }}>{item.memo}</div>
+                  
+                  {/* 🌟 選択ボタンをクリックで切り替え（トグル）可能にし、デザインも変更 */}
+                  <div style={{ marginBottom: '8px' }}>
+                    {item.category === 'アウター' && <button onClick={() => selectedOuter?.id === item.id ? setSelectedOuter(null) : setSelectedOuter(item)} style={getSelectButtonStyle(selectedOuter?.id === item.id)}>{selectedOuter?.id === item.id ? '✓ 選択中（解除）' : 'アウターに選択'}</button>}
+                    {item.category === 'トップス' && <button onClick={() => selectedTop?.id === item.id ? setSelectedTop(null) : setSelectedTop(item)} style={getSelectButtonStyle(selectedTop?.id === item.id)}>{selectedTop?.id === item.id ? '✓ 選択中（解除）' : 'トップスに選択'}</button>}
+                    {item.category === 'ボトムス' && <button onClick={() => selectedBottom?.id === item.id ? setSelectedBottom(null) : setSelectedBottom(item)} style={getSelectButtonStyle(selectedBottom?.id === item.id)}>{selectedBottom?.id === item.id ? '✓ 選択中（解除）' : 'ボトムスに選択'}</button>}
+                    {item.category === 'ワンピース' && <button onClick={() => selectedPiece?.id === item.id ? setSelectedPiece(null) : setSelectedPiece(item)} style={getSelectButtonStyle(selectedPiece?.id === item.id, '#fff', '#b80000')}>{selectedPiece?.id === item.id ? '✓ 選択中（解除）' : 'ワンピースに選択'}</button>}
+                    {item.category === 'シューズ' && <button onClick={() => selectedShoes?.id === item.id ? setSelectedShoes(null) : setSelectedShoes(item)} style={getSelectButtonStyle(selectedShoes?.id === item.id)}>{selectedShoes?.id === item.id ? '✓ 選択中（解除）' : 'シューズに選択'}</button>}
+                    {item.category === '小物・バッグ' && <button onClick={() => selectedAccessory?.id === item.id ? setSelectedAccessory(null) : setSelectedAccessory(item)} style={getSelectButtonStyle(selectedAccessory?.id === item.id, '#fff', '#8e44ad')}>{selectedAccessory?.id === item.id ? '✓ 選択中（解除）' : '小物・バッグに選択'}</button>}
+                  </div>
+                  
+                  <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
+                    <button onClick={() => handleEditStart(item)} style={{ flex: 1, padding: '4px 0', fontSize: '11px', color: '#007bff', border: '1px solid #007bff', borderRadius: '3px', backgroundColor: 'transparent', cursor: 'pointer' }}>編集</button>
+                    <button onClick={() => handleDelete(item.id, item.category)} style={{ flex: 1, padding: '4px 0', fontSize: '11px', color: 'red', border: '1px solid red', borderRadius: '3px', backgroundColor: 'transparent', cursor: 'pointer' }}>削除</button>
+                  </div>
                 </div>
-                
-                {/* 🌟 修正：「編集」ボタンを追加し、「削除」と横並びに配置 */}
-                <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
-                  <button onClick={() => handleEditStart(item)} style={{ flex: 1, padding: '4px 0', fontSize: '11px', color: '#007bff', border: '1px solid #007bff', borderRadius: '3px', backgroundColor: 'transparent', cursor: 'pointer' }}>編集</button>
-                  <button onClick={() => handleDelete(item.id, item.category)} style={{ flex: 1, padding: '4px 0', fontSize: '11px', color: 'red', border: '1px solid red', borderRadius: '3px', backgroundColor: 'transparent', cursor: 'pointer' }}>削除</button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ) : (
