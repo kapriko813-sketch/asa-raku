@@ -7,6 +7,10 @@ db.version(1).stores({
   clothes: '++id, category, memo, image, color, season, sleeve',
   history: '++id, date, image, memo, outerId, topId, bottomId, shoesId, pieceId, accessoryId'
 });
+// バージョン2: コーディネートセット用のテーブルを追加（既存データは保持されます）
+db.version(2).stores({
+  sets: '++id, name, outerId, topId, bottomId, pieceId, shoesId, accessoryId'
+});
 
 // 基本の色リスト
 const defaultColors = ['白', '黒', '青', '赤', 'ベージュ', 'グレー'];
@@ -72,12 +76,17 @@ function App() {
   const [historyMemo, setHistoryMemo] = useState('');
   const [historyList, setHistoryList] = useState([]);
 
+  // --- ⑤ コーディネートセット用の状態 ---
+  const [savedSets, setSavedSets] = useState([]);
+  const [setName, setSetName] = useState('');
+
   // --- クローゼットデータ ---
   const [clothesList, setClothesList] = useState([]);
 
   useEffect(() => {
     refreshClothes();
     refreshHistory();
+    refreshSets();
   }, []);
 
   const refreshClothes = async () => {
@@ -88,6 +97,11 @@ function App() {
   const refreshHistory = async () => {
     const allHistory = await db.history.orderBy('date').reverse().toArray();
     setHistoryList(allHistory);
+  };
+
+  const refreshSets = async () => {
+    const allSets = await db.sets.toArray();
+    setSavedSets(allSets);
   };
 
   const handleCategoryChange = (e) => {
@@ -236,6 +250,14 @@ function App() {
     refreshHistory();
   };
 
+  // 履歴の削除処理を追加
+  const handleDeleteHistory = async (id, date) => {
+    const isConfirmed = window.confirm(`${date} の着用履歴を削除しますか？\n（一度削除すると元に戻せません）`);
+    if (!isConfirmed) return;
+    await db.history.delete(id);
+    refreshHistory();
+  };
+
   const handleDelete = async (id, categoryName) => {
     const isConfirmed = window.confirm(`本当にこの${categoryName}をクローゼットから削除しますか？\n（一度削除すると元に戻せません）`);
     if (!isConfirmed) return;
@@ -252,6 +274,52 @@ function App() {
     await db.clothes.delete(id);
     refreshClothes();
   };
+
+  // --- セット関連のハンドラ ---
+  const handleSaveSet = async () => {
+    if (!setName.trim()) return alert('保存するセット名を入力してください（例: オフィス用、デート用）');
+    
+    await db.sets.add({
+      name: setName,
+      outerId: visibleSlots.outer ? (selectedOuter?.id || null) : null,
+      topId: visibleSlots.top ? (selectedTop?.id || null) : null,
+      bottomId: visibleSlots.bottom ? (selectedBottom?.id || null) : null,
+      pieceId: visibleSlots.piece ? (selectedPiece?.id || null) : null,
+      shoesId: visibleSlots.shoes ? (selectedShoes?.id || null) : null,
+      accessoryId: visibleSlots.accessory ? (selectedAccessory?.id || null) : null
+    });
+    setSetName('');
+    alert('コーディネートセットを保存しました！');
+    refreshSets();
+  };
+
+  const handleLoadSet = (set) => {
+    setSelectedOuter(clothesList.find(c => c.id === set.outerId) || null);
+    setSelectedTop(clothesList.find(c => c.id === set.topId) || null);
+    setSelectedBottom(clothesList.find(c => c.id === set.bottomId) || null);
+    setSelectedPiece(clothesList.find(c => c.id === set.pieceId) || null);
+    setSelectedShoes(clothesList.find(c => c.id === set.shoesId) || null);
+    setSelectedAccessory(clothesList.find(c => c.id === set.accessoryId) || null);
+    
+    // セットに含まれるアイテムに合わせてチェックボックスを自動切り替え
+    setVisibleSlots({
+      outer: !!set.outerId,
+      top: !!set.topId,
+      bottom: !!set.bottomId,
+      piece: !!set.pieceId,
+      shoes: !!set.shoesId,
+      accessory: !!set.accessoryId
+    });
+    
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDeleteSet = async (id) => {
+    if(!window.confirm('このコーディネートセットを削除しますか？')) return;
+    await db.sets.delete(id);
+    refreshSets();
+  };
+  // -------------------------
 
   const filteredClothes = clothesList.filter((item) => {
     const matchCategory = searchCategory === 'すべて' || item.category === searchCategory;
@@ -462,9 +530,61 @@ function App() {
               </div>
             )}
           </div>
-          <div style={{ textAlign: 'center' }}>
+          
+          <div style={{ textAlign: 'center', marginBottom: '15px' }}>
             <button onClick={() => { setSelectedOuter(null); setSelectedTop(null); setSelectedBottom(null); setSelectedPiece(null); setSelectedShoes(null); setSelectedAccessory(null); }} style={{ padding: '6px 15px', fontSize: '12px' }}>プレビューをリセット</button>
           </div>
+
+          <hr style={{ border: '0', borderTop: '1px dashed #ccc', margin: '20px 0' }}/>
+          
+          <div style={{ textAlign: 'center' }}>
+            <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>この組み合わせをセットとして保存</h4>
+            <input 
+              type="text" 
+              placeholder="セット名を入力 (例: オフィス用)" 
+              value={setName} 
+              onChange={(e) => setSetName(e.target.value)} 
+              style={{ padding: '8px', fontSize: '13px', width: '200px', marginRight: '10px', borderRadius: '4px', border: '1px solid #ccc' }}
+            />
+            <button onClick={handleSaveSet} style={{ padding: '8px 15px', fontSize: '13px', backgroundColor: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>セット保存</button>
+          </div>
+
+          {/* 保存済みのセット一覧 */}
+          {savedSets.length > 0 && (
+            <div style={{ marginTop: '25px' }}>
+              <h4 style={{ color: '#28a745', borderBottom: '2px solid #28a745', paddingBottom: '5px', marginBottom: '10px' }}>保存済みのセット一覧</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {savedSets.map(set => {
+                  const sOuter = clothesList.find(c => c.id === set.outerId);
+                  const sTop = clothesList.find(c => c.id === set.topId);
+                  const sBottom = clothesList.find(c => c.id === set.bottomId);
+                  const sPiece = clothesList.find(c => c.id === set.pieceId);
+                  const sShoes = clothesList.find(c => c.id === set.shoesId);
+                  const sAccessory = clothesList.find(c => c.id === set.accessoryId);
+
+                  return (
+                    <div key={set.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', backgroundColor: '#fff', border: '1px solid #ddd', borderRadius: '6px' }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', color: '#333' }}>{set.name}</div>
+                        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                          {sOuter && <img src={sOuter.image} title="アウター" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #ccc' }} />}
+                          {sTop && <img src={sTop.image} title="トップス" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #ccc' }} />}
+                          {sBottom && <img src={sBottom.image} title="ボトムス" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #ccc' }} />}
+                          {sPiece && <img src={sPiece.image} title="ワンピース" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #ccc' }} />}
+                          {sShoes && <img src={sShoes.image} title="シューズ" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #ccc' }} />}
+                          {sAccessory && <img src={sAccessory.image} title="小物・バッグ" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #ccc' }} />}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginLeft: '10px' }}>
+                        <button onClick={() => handleLoadSet(set)} style={{ padding: '6px 12px', fontSize: '11px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold' }}>呼び出す</button>
+                        <button onClick={() => handleDeleteSet(set.id)} style={{ padding: '4px 12px', fontSize: '11px', color: '#dc3545', border: '1px solid #dc3545', backgroundColor: 'transparent', borderRadius: '3px', cursor: 'pointer' }}>削除</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
