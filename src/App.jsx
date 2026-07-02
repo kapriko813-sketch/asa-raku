@@ -35,7 +35,7 @@ function App() {
   // --- 編集中の服のID（null の時は新規登録モード） ---
   const [editingId, setEditingId] = useState(null);
 
-  // --- 🌟 追加：ユーザーが追加したカスタムカラーの読み込み ---
+  // --- ユーザーが追加したカスタムカラーの読み込み ---
   const [savedCustomColors, setSavedCustomColors] = useState(() => {
     const saved = localStorage.getItem('customColors');
     return saved ? JSON.parse(saved) : [];
@@ -153,11 +153,9 @@ function App() {
     e.preventDefault();
     if (!imageSrc) return alert('洋服の画像を選択またはドラッグしてください');
 
-    // 🌟 カスタムカラーの保存処理
     let finalColor = color;
     if (color === 'その他' && customColorInput.trim() !== '') {
       finalColor = customColorInput.trim();
-      // まだ登録されていない新しい色なら localStorage に保存
       if (!savedCustomColors.includes(finalColor)) {
         const newColors = [...savedCustomColors, finalColor];
         setSavedCustomColors(newColors);
@@ -193,7 +191,6 @@ function App() {
     setSleeve(item.sleeve);
     setImageSrc(item.image);
     
-    // 🌟 カスタムカラーだった場合の復元処理
     if (!defaultColors.includes(item.color) && !savedCustomColors.includes(item.color) && item.color !== 'その他') {
       setColor('その他');
       setCustomColorInput(item.color);
@@ -219,7 +216,7 @@ function App() {
 
   const handleAddHistory = async (e) => {
     e.preventDefault();
-    if (!historyImage) return alert('全身の着用写真を選択またはドラッグしてください');
+    if (!historyImage) return alert('全身の写真を選択またはドラッグしてください');
 
     await db.history.add({
       date: historyDate,
@@ -308,7 +305,6 @@ function App() {
     setVisibleSlots(prev => ({ ...prev, [slot]: !prev[slot] }));
   };
 
-  // 🌟 追加：ボタン用のスタイル生成関数（選択されているか等で色を変える）
   const getSelectButtonStyle = (isSelected, defaultColor = '#fff', activeColor = '#28a745') => ({
     fontSize: '11px', 
     padding: '6px 5px', 
@@ -322,16 +318,24 @@ function App() {
     transition: '0.2s'
   });
 
+  const hasSelectedHistoryItem = 
+    (visibleSlots.outer && selectedOuter) ||
+    (visibleSlots.top && selectedTop) ||
+    (visibleSlots.bottom && selectedBottom) ||
+    (visibleSlots.piece && selectedPiece) ||
+    (visibleSlots.shoes && selectedShoes) ||
+    (visibleSlots.accessory && selectedAccessory);
+
   return (
     <div translate="no" style={{ padding: '15px', fontFamily: 'sans-serif', maxWidth: '600px', margin: '0 auto' }}>
       <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>朝ラクローゼット</h2>
 
       <div style={{ display: 'flex', borderRadius: '8px', overflow: 'hidden', marginBottom: '20px', border: '1px solid #ccc' }}>
         <button onClick={() => setActiveTab('register')} style={tabStyle('register')}>
-          {editingId ? '✏️ 服を編集' : '服を登録'}
+          {editingId ? '服を編集' : '服を登録'}
         </button>
         <button onClick={() => setActiveTab('preview')} style={tabStyle('preview')}>組み合わせ</button>
-        <button onClick={() => setActiveTab('history')} style={tabStyle('history')}>📸 今日着た服</button>
+        <button onClick={() => setActiveTab('history')} style={tabStyle('history')}>今日着た服</button>
       </div>
 
       {activeTab === 'register' && (
@@ -341,7 +345,7 @@ function App() {
           </h3>
           
           <div style={dropZoneStyle(isDragOverRegister)} onDragOver={(e) => { e.preventDefault(); setIsDragOverRegister(true); }} onDragLeave={() => setIsDragOverRegister(false)} onDrop={handleDropRegister} onClick={() => document.getElementById('fileInput').click()}>
-            <p style={{ margin: 0, fontSize: '13px', color: '#666' }}>📸 画像を<b>ドラッグ＆ドロップ</b>または<b>クリック選択</b></p>
+            <p style={{ margin: 0, fontSize: '13px', color: '#666' }}>画像を<b>ドラッグ＆ドロップ</b>または<b>クリック選択</b></p>
             <input id="fileInput" type="file" accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} />
           </div>
 
@@ -356,12 +360,10 @@ function App() {
             <label style={{ marginLeft: '15px' }}>色: </label>
             <select value={color} onChange={(e) => setColor(e.target.value)} style={{ padding: '5px' }}>
               {defaultColors.map(c => <option key={c} value={c}>{c}</option>)}
-              {/* 保存されたカスタムカラーを展開 */}
               {savedCustomColors.map(c => <option key={c} value={c}>{c}</option>)}
               <option value="その他">その他（自由入力）</option>
             </select>
             
-            {/* 🌟 その他が選ばれた時に出現する自由入力フィールド */}
             {color === 'その他' && (
               <input 
                 type="text" 
@@ -417,9 +419,9 @@ function App() {
             <label><input type="checkbox" checked={visibleSlots.outer} onChange={() => handleCheckboxChange('outer')} /> アウター</label>
             <label><input type="checkbox" checked={visibleSlots.top} onChange={() => handleCheckboxChange('top')} /> トップス</label>
             <label><input type="checkbox" checked={visibleSlots.bottom} onChange={() => handleCheckboxChange('bottom')} /> ボトムス</label>
-            <label style={{ color: '#b80000', fontWeight: 'bold' }}><input type="checkbox" checked={visibleSlots.piece} onChange={() => handleCheckboxChange('piece')} /> 👗ワンピース</label>
+            <label><input type="checkbox" checked={visibleSlots.piece} onChange={() => handleCheckboxChange('piece')} /> ワンピース</label>
             <label><input type="checkbox" checked={visibleSlots.shoes} onChange={() => handleCheckboxChange('shoes')} /> シューズ</label>
-            <label style={{ color: '#8e44ad', fontWeight: 'bold' }}><input type="checkbox" checked={visibleSlots.accessory} onChange={() => handleCheckboxChange('accessory')} /> 💍小物・バッグ</label>
+            <label><input type="checkbox" checked={visibleSlots.accessory} onChange={() => handleCheckboxChange('accessory')} /> 小物・バッグ</label>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '15px' }}>
@@ -442,8 +444,8 @@ function App() {
               </div>
             )}
             {visibleSlots.piece && (
-              <div style={{ ...previewBoxStyle, borderColor: '#b80000' }}>
-                <div style={{ fontWeight: 'bold', color: '#b80000' }}>ワンピース</div>
+              <div style={previewBoxStyle}>
+                <div style={{ fontWeight: 'bold', color: '#666' }}>ワンピース</div>
                 {selectedPiece ? <img src={selectedPiece.image} alt="Piece" style={{ width: '100%', height: '100px', objectFit: 'cover', marginTop: '5px' }} /> : <p style={{ color: '#999', marginTop: '30px' }}>未選択</p>}
               </div>
             )}
@@ -454,8 +456,8 @@ function App() {
               </div>
             )}
             {visibleSlots.accessory && (
-              <div style={{ ...previewBoxStyle, borderColor: '#8e44ad' }}>
-                <div style={{ fontWeight: 'bold', color: '#8e44ad' }}>小物・バッグ</div>
+              <div style={previewBoxStyle}>
+                <div style={{ fontWeight: 'bold', color: '#666' }}>小物・バッグ</div>
                 {selectedAccessory ? <img src={selectedAccessory.image} alt="Accessory" style={{ width: '100%', height: '100px', objectFit: 'cover', marginTop: '5px' }} /> : <p style={{ color: '#999', marginTop: '30px' }}>未選択</p>}
               </div>
             )}
@@ -475,21 +477,22 @@ function App() {
           </div>
 
           <div style={dropZoneStyle(isDragOverHistory)} onDragOver={(e) => { e.preventDefault(); setIsDragOverHistory(true); }} onDragLeave={() => setIsDragOverHistory(false)} onDrop={handleDropHistory} onClick={() => document.getElementById('historyFileInput').click()}>
-            <p style={{ margin: 0, fontSize: '13px', color: '#666' }}>📸 全身着画を<b>ドラッグ＆ドロップ</b>または<b>クリック選択</b></p>
+            <p style={{ margin: 0, fontSize: '13px', color: '#666' }}>全身の写真を<b>ドラッグ＆ドロップ</b>または<b>クリック選択</b></p>
             <input id="historyFileInput" type="file" accept="image/*" onChange={handleHistoryImageChange} style={{ display: 'none' }} />
           </div>
 
           {historyImage && <div style={{ margin: '10px 0', textAlign: 'center' }}><img src={historyImage} alt="全身" style={{ width: '130px', borderRadius: '6px', border: '1px solid #ccc' }} /></div>}
           
           <div style={{ padding: '8px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #f39c12', marginBottom: '15px', fontSize: '12px' }}>
-            <strong style={{ color: '#e67e22' }}>🔗 表示・リンク中（有効なスロットのみ）:</strong>
+            <strong style={{ color: '#e67e22' }}>リンク中のアイテム:</strong>
             <div style={{ display: 'flex', gap: '5px', marginTop: '5px', color: '#666', flexWrap: 'wrap' }}>
-              {visibleSlots.outer && <span>【アウター: {selectedOuter ? '⭕' : '❌'}】</span>}
-              {visibleSlots.top && <span>【トップス: {selectedTop ? '⭕' : '❌'}】</span>}
-              {visibleSlots.bottom && <span>【ボトムス: {selectedBottom ? '⭕' : '❌'}】</span>}
-              {visibleSlots.piece && <span>【ワンピ: {selectedPiece ? '⭕' : '❌'}】</span>}
-              {visibleSlots.shoes && <span>【靴: {selectedShoes ? '⭕' : '❌'}】</span>}
-              {visibleSlots.accessory && <span>【小物: {selectedAccessory ? '⭕' : '❌'}】</span>}
+              {visibleSlots.outer && selectedOuter && <span>【アウター】</span>}
+              {visibleSlots.top && selectedTop && <span>【トップス】</span>}
+              {visibleSlots.bottom && selectedBottom && <span>【ボトムス】</span>}
+              {visibleSlots.piece && selectedPiece && <span>【ワンピース】</span>}
+              {visibleSlots.shoes && selectedShoes && <span>【シューズ】</span>}
+              {visibleSlots.accessory && selectedAccessory && <span>【小物・バッグ】</span>}
+              {!hasSelectedHistoryItem && <span>選択なし</span>}
             </div>
           </div>
           <div style={{ marginBottom: '15px' }}><input type="text" placeholder="今日の出来事やメモ" value={historyMemo} onChange={(e) => setHistoryMemo(e.target.value)} style={{ width: '95%', padding: '8px', boxSizing: 'border-box' }} /></div>
@@ -505,7 +508,7 @@ function App() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
               <h3 style={{ margin: 0, fontSize: '16px' }}>【クローゼット検索】</h3>
               <button type="button" onClick={() => setIsSearchOpen(!isSearchOpen)} style={{ padding: '4px 10px', fontSize: '12px', cursor: 'pointer', borderRadius: '4px', border: '1px solid #666', backgroundColor: '#fff' }}>
-                {isSearchOpen ? '🔼 詳細条件を隠す' : '⚙️ 詳細条件を選ぶ'}
+                {isSearchOpen ? '詳細条件を隠す' : '詳細条件を選ぶ'}
               </button>
             </div>
             {isSearchOpen && (
@@ -533,7 +536,7 @@ function App() {
             )}
             
             <div style={{ display: 'flex', gap: '10px' }}>
-              <input type="text" placeholder="🔍 メモのキーワードで爆速検索" value={searchWord} onChange={(e) => setSearchWord(e.target.value)} style={{ padding: '8px', flex: 1, boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #ccc' }} />
+              <input type="text" placeholder="メモのキーワードで検索" value={searchWord} onChange={(e) => setSearchWord(e.target.value)} style={{ padding: '8px', flex: 1, boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #ccc' }} />
               <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', cursor: 'pointer' }}>
                 <option value="newest">登録が新しい順</option>
                 <option value="color">色順で並べる</option>
@@ -544,7 +547,6 @@ function App() {
           <h3>【該当データ一覧 （{filteredClothes.length}件）】</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '15px' }}>
             {filteredClothes.map((item) => {
-              // 🌟 選択中かどうかの判定処理を追加
               const isSelected = 
                 item.id === selectedOuter?.id || 
                 item.id === selectedTop?.id || 
@@ -559,10 +561,9 @@ function App() {
               return (
                 <div key={item.id} style={{ border: borderStyle, padding: '10px', borderRadius: '6px', textAlign: 'center', backgroundColor: bgColor, position: 'relative' }}>
                   
-                  {/* 🌟 選択中のバッジ表示 */}
                   {isSelected && (
                     <div style={{ position: 'absolute', top: '-10px', left: '-10px', backgroundColor: '#28a745', color: '#fff', padding: '4px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
-                      ✓ 選択中
+                      選択中
                     </div>
                   )}
 
@@ -570,14 +571,13 @@ function App() {
                   <div style={{ fontSize: '12px', fontWeight: 'bold', marginTop: '5px' }}>{item.category} <span>({item.color})</span></div>
                   <div style={{ fontSize: '11px', color: '#666', minHeight: '32px', margin: '4px 0' }}>{item.memo}</div>
                   
-                  {/* 🌟 選択ボタンをクリックで切り替え（トグル）可能にし、デザインも変更 */}
                   <div style={{ marginBottom: '8px' }}>
-                    {item.category === 'アウター' && <button onClick={() => selectedOuter?.id === item.id ? setSelectedOuter(null) : setSelectedOuter(item)} style={getSelectButtonStyle(selectedOuter?.id === item.id)}>{selectedOuter?.id === item.id ? '✓ 選択中（解除）' : 'アウターに選択'}</button>}
-                    {item.category === 'トップス' && <button onClick={() => selectedTop?.id === item.id ? setSelectedTop(null) : setSelectedTop(item)} style={getSelectButtonStyle(selectedTop?.id === item.id)}>{selectedTop?.id === item.id ? '✓ 選択中（解除）' : 'トップスに選択'}</button>}
-                    {item.category === 'ボトムス' && <button onClick={() => selectedBottom?.id === item.id ? setSelectedBottom(null) : setSelectedBottom(item)} style={getSelectButtonStyle(selectedBottom?.id === item.id)}>{selectedBottom?.id === item.id ? '✓ 選択中（解除）' : 'ボトムスに選択'}</button>}
-                    {item.category === 'ワンピース' && <button onClick={() => selectedPiece?.id === item.id ? setSelectedPiece(null) : setSelectedPiece(item)} style={getSelectButtonStyle(selectedPiece?.id === item.id, '#fff', '#b80000')}>{selectedPiece?.id === item.id ? '✓ 選択中（解除）' : 'ワンピースに選択'}</button>}
-                    {item.category === 'シューズ' && <button onClick={() => selectedShoes?.id === item.id ? setSelectedShoes(null) : setSelectedShoes(item)} style={getSelectButtonStyle(selectedShoes?.id === item.id)}>{selectedShoes?.id === item.id ? '✓ 選択中（解除）' : 'シューズに選択'}</button>}
-                    {item.category === '小物・バッグ' && <button onClick={() => selectedAccessory?.id === item.id ? setSelectedAccessory(null) : setSelectedAccessory(item)} style={getSelectButtonStyle(selectedAccessory?.id === item.id, '#fff', '#8e44ad')}>{selectedAccessory?.id === item.id ? '✓ 選択中（解除）' : '小物・バッグに選択'}</button>}
+                    {item.category === 'アウター' && <button onClick={() => selectedOuter?.id === item.id ? setSelectedOuter(null) : setSelectedOuter(item)} style={getSelectButtonStyle(selectedOuter?.id === item.id)}>{selectedOuter?.id === item.id ? '選択中（解除）' : 'アウターに選択'}</button>}
+                    {item.category === 'トップス' && <button onClick={() => selectedTop?.id === item.id ? setSelectedTop(null) : setSelectedTop(item)} style={getSelectButtonStyle(selectedTop?.id === item.id)}>{selectedTop?.id === item.id ? '選択中（解除）' : 'トップスに選択'}</button>}
+                    {item.category === 'ボトムス' && <button onClick={() => selectedBottom?.id === item.id ? setSelectedBottom(null) : setSelectedBottom(item)} style={getSelectButtonStyle(selectedBottom?.id === item.id)}>{selectedBottom?.id === item.id ? '選択中（解除）' : 'ボトムスに選択'}</button>}
+                    {item.category === 'ワンピース' && <button onClick={() => selectedPiece?.id === item.id ? setSelectedPiece(null) : setSelectedPiece(item)} style={getSelectButtonStyle(selectedPiece?.id === item.id)}>{selectedPiece?.id === item.id ? '選択中（解除）' : 'ワンピースに選択'}</button>}
+                    {item.category === 'シューズ' && <button onClick={() => selectedShoes?.id === item.id ? setSelectedShoes(null) : setSelectedShoes(item)} style={getSelectButtonStyle(selectedShoes?.id === item.id)}>{selectedShoes?.id === item.id ? '選択中（解除）' : 'シューズに選択'}</button>}
+                    {item.category === '小物・バッグ' && <button onClick={() => selectedAccessory?.id === item.id ? setSelectedAccessory(null) : setSelectedAccessory(item)} style={getSelectButtonStyle(selectedAccessory?.id === item.id)}>{selectedAccessory?.id === item.id ? '選択中（解除）' : '小物・バッグに選択'}</button>}
                   </div>
                   
                   <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
@@ -593,7 +593,7 @@ function App() {
         <div>
           <h3>【過去の着用履歴 （{historyList.length}件）】</h3>
           {historyList.length === 0 ? (
-            <p style={{ color: '#999', fontSize: '13px' }}>まだ着画の履歴はありません。</p>
+            <p style={{ color: '#999', fontSize: '13px' }}>まだ着用履歴はありません。</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               {historyList.map((hist) => {
@@ -613,16 +613,16 @@ function App() {
                     
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                       <div>
-                        <div style={{ fontSize: '13px', color: '#333', fontWeight: 'bold', marginBottom: '8px' }}>💬 {hist.memo}</div>
+                        <div style={{ fontSize: '13px', color: '#333', fontWeight: 'bold', marginBottom: '8px' }}>{hist.memo}</div>
                         <div style={{ marginTop: '5px' }}>
-                          <div style={{ fontSize: '11px', color: '#e67e22', fontWeight: 'bold', marginBottom: '3px' }}>🔗 着用アイテムリンク:</div>
+                          <div style={{ fontSize: '11px', color: '#e67e22', fontWeight: 'bold', marginBottom: '3px' }}>着用アイテムリンク:</div>
                           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                             {linkedOuter && <img src={linkedOuter.image} title="アウター" style={{ width: '35px', height: '35px', objectFit: 'cover', border: '1px solid #ccc', borderRadius: '3px' }} />}
                             {linkedTop && <img src={linkedTop.image} title="トップス" style={{ width: '35px', height: '35px', objectFit: 'cover', border: '1px solid #ccc', borderRadius: '3px' }} />}
                             {linkedBottom && <img src={linkedBottom.image} title="ボトムス" style={{ width: '35px', height: '35px', objectFit: 'cover', border: '1px solid #ccc', borderRadius: '3px' }} />}
-                            {linkedPiece && <img src={linkedPiece.image} title="ワンピース" style={{ width: '35px', height: '35px', objectFit: 'cover', border: '1px solid #b80000', borderRadius: '3px' }} />}
+                            {linkedPiece && <img src={linkedPiece.image} title="ワンピース" style={{ width: '35px', height: '35px', objectFit: 'cover', border: '1px solid #ccc', borderRadius: '3px' }} />}
                             {linkedShoes && <img src={linkedShoes.image} title="シューズ" style={{ width: '35px', height: '35px', objectFit: 'cover', border: '1px solid #ccc', borderRadius: '3px' }} />}
-                            {linkedAccessory && <img src={linkedAccessory.image} title="小物・バッグ" style={{ width: '35px', height: '35px', objectFit: 'cover', border: '1px solid #8e44ad', borderRadius: '3px' }} />}
+                            {linkedAccessory && <img src={linkedAccessory.image} title="小物・バッグ" style={{ width: '35px', height: '35px', objectFit: 'cover', border: '1px solid #ccc', borderRadius: '3px' }} />}
                           </div>
                         </div>
                       </div>
